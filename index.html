@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Boy!</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="game-wrapper">
+        <canvas id="game-canvas"></canvas>
+
+        <div id="start-screen">
+            <h1>Space Boy!</h1>
+            <p>A / D &mdash; Move</p>
+            <p>Right Click &mdash; Jump (double jump!)</p>
+            <p>Left Click &mdash; Shoot</p>
+            <p>Mouse &mdash; Aim</p>
+            <p>Space &mdash; Super Shot</p>
+            <p style="margin-top: 12px; font-size: 13px; color: #88aacc;">Kill 5 enemies to earn a super bullet</p>
+            <p style="margin-top: 20px; color: #00ccff;">Click anywhere to start</p>
+        </div>
+
+        <div id="death-screen" class="hidden">
+            <h1>Space Boy!</h1>
+            <p>You died!</p>
+            <p style="margin-top: 20px; color: #00ccff;">Click anywhere to retry</p>
+        </div>
+    </div>
+
+    <!-- Scripts loaded in dependency order (no ES modules needed) -->
+    <script src="js/constants.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/camera.js"></script>
+    <script src="js/physics.js"></script>
+    <script src="js/level.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/enemies.js"></script>
+    <script src="js/gems.js"></script>
+    <script src="js/hud.js"></script>
+    <script src="js/validator.js"></script>
+    <script src="js/spawner.js"></script>
+    <script src="js/levels/level1.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

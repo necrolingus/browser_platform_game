@@ -1,0 +1,9 @@
+{
+  "name": "space-boy",
+  "version": "0.1.0",
+  "description": "Space Boy! — A side-scrolling platform shooter",
+  "private": true,
+  "scripts": {
+    "start": "npx http-server . -p 8080 -c-1 -o"
+  }
+}
