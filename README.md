@@ -84,8 +84,7 @@ that ships with the game.
 | 🔫 Shoot | **Left Click** |
 | ⚡ Super Shot | `Space` |
 
-> 💡 **Pro tip:** Super Bullets carry over between deaths. **Save them for
-> the boss.** You'll thank yourself later. 🙏
+> 💡 **Pro tip:** Save them for the boss. You'll thank yourself later. 🙏
 
 ---
 
