@@ -59,8 +59,12 @@
 
             canvas.addEventListener('mousemove', function (e) {
                 var rect = canvas.getBoundingClientRect();
-                self.mouseX = e.clientX - rect.left;
-                self.mouseY = e.clientY - rect.top;
+                // Canvas is CSS-scaled to fit the viewport but its internal
+                // resolution is fixed. Convert client coords to canvas coords.
+                var scaleX = canvas.width / rect.width;
+                var scaleY = canvas.height / rect.height;
+                self.mouseX = (e.clientX - rect.left) * scaleX;
+                self.mouseY = (e.clientY - rect.top) * scaleY;
             });
 
             canvas.addEventListener('mousedown', function (e) {
