@@ -36,10 +36,27 @@
     // --- Screens ---
     var startScreen = document.getElementById('start-screen');
     var deathScreen = document.getElementById('death-screen');
+    var winScreen   = document.getElementById('win-screen');
+    var winStats    = document.getElementById('win-stats');
+    var mobileScreen = document.getElementById('mobile-screen');
+
+    // --- Mobile / touch detection — block gameplay on touch-only devices ---
+    var isMobile = (function () {
+        var ua = navigator.userAgent || '';
+        var touchOnly = ('ontouchstart' in window) && !window.matchMedia('(pointer: fine)').matches;
+        var uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+        return touchOnly || uaMobile;
+    })();
+    if (isMobile) {
+        mobileScreen.classList.remove('hidden');
+        startScreen.classList.add('hidden');
+    }
 
     // --- State ---
-    var state = 'start'; // 'start' | 'playing' | 'dead'
-    var input, camera, player, level, enemies, gems, bullets;
+    var state = 'start'; // 'start' | 'playing' | 'dead' | 'won'
+    var input, camera, player, level, enemies, gems, bullets, acidPlants;
+    var boss = null;
+    var arenaBounds = null;
     var score = 0;
     var gemsCollected = 0;
     var lastTime = 0;
@@ -70,10 +87,17 @@
         bullets = [];
         enemies = spawnEnemies(level.enemyDefs);
         gems = spawnGems(level.gemDefs);
+        acidPlants = SpaceBoy.generateAcidPlants(level1Data);
+
+        // --- Boss + arena (level 1 = alien saucer) ---
+        arenaBounds = SpaceBoy.getBossArenaBounds();
+        boss = new SpaceBoy.Boss(level1Data.bossType || 'alien_saucer', arenaBounds);
+
         score = 0;
         gemsCollected = 0;
         resetKillTracker();
         SpaceBoy.clearEnemyParticles();
+        SpaceBoy.Background.generate();
     }
 
     function spawnEnemies(defs) {
@@ -111,16 +135,21 @@
     }
 
     function onScreenClick() {
+        if (isMobile) return; // gameplay blocked on touch-only devices
         if (state === 'start') {
             startScreen.classList.add('hidden');
             startGame();
         } else if (state === 'dead') {
             deathScreen.classList.add('hidden');
             startGame();
+        } else if (state === 'won') {
+            winScreen.classList.add('hidden');
+            startGame();
         }
     }
     startScreen.addEventListener('click', onScreenClick);
     deathScreen.addEventListener('click', onScreenClick);
+    winScreen.addEventListener('click', onScreenClick);
 
     // --- Game loop ---
     function gameLoop(timestamp) {
@@ -146,8 +175,42 @@
             player.kill();
         }
 
+        // --- Acid plants ---
+        for (var ap = 0; ap < acidPlants.length; ap++) {
+            var plant = acidPlants[ap];
+            plant.update(dt);
+
+            // Solid body collision — push player out horizontally so they must jump over
+            if (aabb(player, plant)) {
+                var playerCenter = player.x + player.width / 2;
+                var plantCenter = plant.x + plant.width / 2;
+                if (playerCenter < plantCenter) {
+                    player.x = plant.x - player.width;
+                } else {
+                    player.x = plant.x + plant.width;
+                }
+                player.vx = 0;
+            }
+
+            if (player.alive && plant.hitsPlayer(player)) {
+                player.kill();
+            }
+        }
+
         if (player.y > LEVEL.HEIGHT_PX + 100) {
             player.kill();
+        }
+
+        // --- Boss arena gate ---
+        // Once the player crosses into the arena, lock the camera to the arena
+        // left edge and prevent the player walking back out. Activates the boss.
+        var inArena = player.x + player.width / 2 >= arenaBounds.x;
+        if (inArena && boss && !boss.active && boss.alive) {
+            boss.activate();
+        }
+        if (inArena) {
+            // Lock player inside arena bounds
+            if (player.x < arenaBounds.x) { player.x = arenaBounds.x; player.vx = 0; }
         }
 
         if (player.x < 0) { player.x = 0; player.vx = 0; }
@@ -157,7 +220,32 @@
         }
 
         // --- Camera ---
-        camera.follow(player);
+        if (inArena) {
+            // Lock camera to arena screen
+            camera.x = arenaBounds.x;
+            camera.y = 0;
+        } else {
+            camera.follow(player);
+            // Also clamp so the camera never reveals the arena early
+            if (camera.x + GAME.CANVAS_WIDTH > arenaBounds.x) {
+                camera.x = arenaBounds.x - GAME.CANVAS_WIDTH;
+            }
+        }
+
+        // --- Boss ---
+        if (boss) {
+            boss.update(dt, player);
+
+            // Player contact with living boss body = take damage
+            if (player.alive && boss.alive && !boss._dying && boss.active && aabb(player, boss.rect())) {
+                player.takeDamage();
+            }
+
+            // Boss bullets hitting player
+            if (player.alive && boss.checkBulletHitsPlayer(player)) {
+                player.takeDamage();
+            }
+        }
 
         // --- Enemies ---
         for (var e = 0; e < enemies.length; e++) {
@@ -209,6 +297,19 @@
                 }
             }
             if (hit) { bullets.splice(i, 1); continue; }
+
+            // Bullet vs boss
+            if (boss && boss.alive && !boss._dying && boss.active) {
+                var br = boss.rect();
+                if (circleRect(b.x, b.y, bulletRadius, br.x, br.y, br.width, br.height)) {
+                    var bossKilled = boss.takeDamage(b.damage);
+                    if (bossKilled) {
+                        score += boss.scoreValue;
+                    }
+                    bullets.splice(i, 1);
+                    continue;
+                }
+            }
         }
 
         // --- Gems ---
@@ -229,21 +330,55 @@
             state = 'dead';
             deathScreen.classList.remove('hidden');
         }
+
+        // --- Win (boss fully defeated, including death animation) ---
+        if (boss && !boss.alive && player.alive && state === 'playing') {
+            state = 'won';
+            showWinScreen();
+        }
+    }
+
+    function showWinScreen() {
+        // Build a stat summary
+        var totalKills = 0;
+        var lines = [];
+        var typeNames = { walker: 'Walkers', charger: 'Chargers', flyer: 'Flyers' };
+        for (var key in killTracker) {
+            if (killTracker.hasOwnProperty(key)) {
+                totalKills += killTracker[key];
+                lines.push((typeNames[key] || key) + ': ' + killTracker[key]);
+            }
+        }
+        var html = '';
+        html += '<div>Score: <span style="color:#ffcc33">' + score + '</span></div>';
+        html += '<div>Gems: <span style="color:#00ffaa">' + gemsCollected + '</span></div>';
+        html += '<div>Total Kills: <span style="color:#ff6666">' + totalKills + '</span></div>';
+        html += '<div style="margin-top:6px; font-size:13px; color:#88a;">' + lines.join(' &nbsp;·&nbsp; ') + '</div>';
+        html += '<div style="margin-top:6px;">Boss: <span style="color:#ff88aa">DEFEATED</span></div>';
+        winStats.innerHTML = html;
+        winScreen.classList.remove('hidden');
     }
 
     function render() {
-        // Clear
+        // Clear + space background
         ctx.fillStyle = GAME.BACKGROUND_COLOR;
         ctx.fillRect(0, 0, GAME.CANVAS_WIDTH, GAME.CANVAS_HEIGHT);
+        SpaceBoy.Background.draw(ctx, camera);
 
         // Level tiles
         level.draw(ctx, camera);
+
+        // Acid plants (behind enemies/player, on top of tiles)
+        for (var ap = 0; ap < acidPlants.length; ap++) acidPlants[ap].draw(ctx, camera);
 
         // Gems
         for (var g = 0; g < gems.length; g++) gems[g].draw(ctx, camera);
 
         // Enemies
         for (var e = 0; e < enemies.length; e++) enemies[e].draw(ctx, camera);
+
+        // Boss (drawn before enemy particles so explosions can layer over)
+        if (boss) boss.draw(ctx, camera);
 
         // Enemy hit particles
         SpaceBoy.drawEnemyParticles(ctx, camera);

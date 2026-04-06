@@ -22,8 +22,9 @@
 
 (function () {
     function buildTiles() {
-        var W = 120; // LEVEL.WIDTH_TILES
-        var H = 16;  // LEVEL.HEIGHT_TILES
+        var W = SpaceBoy.LEVEL.WIDTH_TILES;   // 150 (5 screens × 30)
+        var H = SpaceBoy.LEVEL.HEIGHT_TILES;  // 16
+        var PLAY_W = SpaceBoy.LEVEL.PLAY_SCREENS * 30; // 120 — end of normal play area
         var G = 1;   // GROUND
         var P = 2;   // PLATFORM
         var L = 3;   // LAVA
@@ -63,6 +64,16 @@
         fillRow(15, 89, 91, L);
         fillRow(14, 89, 91, _);
         fillRect(14, 15, 92, 119, G);      // Screen 4 ground
+
+        // =====================================================================
+        // BOSS ARENA — Screen 5 (cols 120-149)
+        // Clean arena: ground floor + a few platforms for jumping. No enemies,
+        // no obstacles, no lava. The boss is spawned here by boss.js.
+        // =====================================================================
+        fillRect(14, 15, 120, W - 1, G);   // arena ground
+        fillRow(10, 126, 130, P);          // left perch
+        fillRow(10, 140, 144, P);          // right perch
+        fillRow(8,  132, 138, P);          // center high perch (2 up from row 10)
 
         // =====================================================================
         // PLATFORMS — Screen 1 (cols 0-29)

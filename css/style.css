@@ -30,7 +30,9 @@ canvas#game-canvas {
 }
 
 #start-screen,
-#death-screen {
+#death-screen,
+#win-screen,
+#mobile-screen {
     position: absolute;
     top: 0;
     left: 0;
@@ -46,7 +48,9 @@ canvas#game-canvas {
 }
 
 #start-screen h1,
-#death-screen h1 {
+#death-screen h1,
+#win-screen h1,
+#mobile-screen h1 {
     font-size: 48px;
     color: #00ccff;
     text-shadow: 0 0 20px rgba(0, 204, 255, 0.6);
@@ -54,10 +58,16 @@ canvas#game-canvas {
 }
 
 #start-screen p,
-#death-screen p {
+#death-screen p,
+#win-screen p,
+#mobile-screen p {
     font-size: 18px;
     color: #aaa;
     margin-bottom: 8px;
+}
+
+#mobile-screen {
+    z-index: 100;
 }
 
 .hidden {

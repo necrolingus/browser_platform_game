@@ -19,11 +19,14 @@ SpaceBoy.TILE = {
 };
 
 // Level dimensions (in tiles)
+// NOTE: SCREENS is the total level width including the final boss arena screen.
+// PLAY_SCREENS is the playable area (everything before the arena).
 SpaceBoy.LEVEL = {
-    SCREENS: 4,                                          // number of camera-widths
-    WIDTH_TILES: Math.floor(960 / 32) * 4,               // 30 tiles/screen × 4 = 120
+    SCREENS: 5,                                          // 4 play screens + 1 boss arena
+    PLAY_SCREENS: 4,                                     // cols 0..(PLAY_SCREENS*30)-1 = normal play
+    WIDTH_TILES: Math.floor(960 / 32) * 5,               // 30 tiles/screen × 5 = 150
     HEIGHT_TILES: Math.floor(540 / 32),                   // 16 tiles high (512px used)
-    WIDTH_PX: Math.floor(960 / 32) * 4 * 32,             // 3840 px
+    WIDTH_PX: Math.floor(960 / 32) * 5 * 32,             // 4800 px
     HEIGHT_PX: Math.floor(540 / 32) * 32,                // 512 px  (fits in 540 canvas)
 };
 
@@ -244,6 +247,138 @@ SpaceBoy.ENEMY_TYPES = {
 SpaceBoy.WALKER = SpaceBoy.ENEMY_TYPES.walker;
 SpaceBoy.CHARGER = SpaceBoy.ENEMY_TYPES.charger;
 SpaceBoy.FLYER = SpaceBoy.ENEMY_TYPES.flyer;
+
+// Space background (adapts to level size)
+SpaceBoy.BACKGROUND = {
+    // Stars
+    STAR_DENSITY: 0.0004,          // stars per px² (more = denser)
+    STAR_MIN_SIZE: 0.5,
+    STAR_MAX_SIZE: 2.5,
+    STAR_COLORS: ['#ffffff', '#aaccff', '#ffddaa', '#ccddff', '#ffeedd'],
+    STAR_TWINKLE_SPEED: 2,         // twinkle frequency
+    STAR_TWINKLE_AMP: 0.3,         // alpha variation (0-1)
+    PARALLAX_STARS: 0.15,          // how much stars move relative to camera (0=fixed, 1=full scroll)
+
+    // Nebulae (colorful clouds)
+    NEBULA_COUNT: 5,               // nebulae per level (scales with level size)
+    NEBULA_MIN_RADIUS: 80,
+    NEBULA_MAX_RADIUS: 200,
+    NEBULA_COLORS: [
+        'rgba(100, 50, 150, 0.08)',   // purple
+        'rgba(50, 100, 180, 0.06)',   // blue
+        'rgba(150, 50, 80, 0.07)',    // red
+        'rgba(50, 150, 100, 0.05)',   // teal
+        'rgba(180, 100, 50, 0.06)',   // orange
+    ],
+    PARALLAX_NEBULA: 0.08,         // nebulae move slower than stars
+
+    // Distant planets (decorative)
+    PLANET_COUNT: 2,
+    PLANET_MIN_RADIUS: 20,
+    PLANET_MAX_RADIUS: 50,
+    PLANET_COLORS: ['#334466', '#553344', '#445544', '#444455'],
+    PARALLAX_PLANET: 0.05,
+};
+
+// =============================================================================
+// Boss config
+// BOSS is shared across all bosses; BOSS_TYPES holds per-level parameters.
+// Arena is always the final screen of the level (PLAY_SCREENS * 30 ... end).
+// =============================================================================
+SpaceBoy.BOSS = {
+    ARENA_SCREENS: 1,                       // arena is always 1 camera-width
+    HEALTH_BAR_WIDTH: 120,
+    HEALTH_BAR_HEIGHT: 8,
+    HEALTH_BAR_OFFSET_Y: -28,               // above boss top
+    HEALTH_BAR_BG: '#222233',
+    HEALTH_BAR_FILL: '#ff3355',
+    HEALTH_BAR_BORDER: '#ffffff',
+    HEALTH_BAR_GLOW: 'rgba(255,60,90,0.45)',
+    HIT_FLASH_TIME: 0.12,
+    DEATH_EXPLOSION_TIME: 1.2,
+    DEATH_PARTICLE_COUNT: 60,
+};
+
+// Per-level boss parameters. Each entry is fully parameterized so new bosses
+// can be dropped in without touching boss.js logic.
+SpaceBoy.BOSS_TYPES = {
+    // Level 1 — Grey alien in a flying saucer
+    alien_saucer: {
+        NAME: 'Greyus Prime',
+        WIDTH: 100,                         // 5x player width (20 * 5)
+        HEIGHT: 180,                        // 5x player height (36 * 5)
+        HEALTH: 30,                         // user-requested: 30 HP
+        SCORE: 500,
+        CONTACT_DAMAGE: 1,
+
+        // Movement — wirrrr around idly, charge occasionally
+        MOVE_SPEED: 110,                    // px/sec base flying speed
+        CHARGE_SPEED: 260,                  // px/sec during charge
+        WIGGLE_AMP_X: 90,                   // horizontal wiggle amplitude
+        WIGGLE_AMP_Y: 50,                   // vertical wiggle amplitude
+        WIGGLE_FREQ_X: 0.8,                 // cycles/sec
+        WIGGLE_FREQ_Y: 1.3,
+        HOVER_Y_MIN: 60,                    // keep boss up in the air
+        HOVER_Y_MAX: 220,
+
+        // Distance rule — level 1 keeps its distance so player has breathing room
+        MIN_DISTANCE_FROM_PLAYER: 260,      // px — never approach closer than this
+        CHARGE_INTERVAL_MIN: 5,             // seconds between charges
+        CHARGE_INTERVAL_MAX: 9,
+        CHARGE_DURATION: 1.1,               // seconds a charge lasts
+
+        // Shooting — randomized bursts with pauses so player can be aggressive
+        SHOOT_PAUSE_MIN: 1.8,               // pause before next burst
+        SHOOT_PAUSE_MAX: 3.4,
+        SHOOT_BURST_MIN: 2,                 // bullets per burst
+        SHOOT_BURST_MAX: 5,
+        SHOOT_BURST_INTERVAL: 0.22,         // seconds between bullets in a burst
+        SHOOT_SPREAD: 0.22,                 // radians of aim randomization
+        BULLET_SPEED: 280,
+        BULLET_RADIUS: 6,
+        BULLET_LIFE: 4,
+        BULLET_DAMAGE: 1,
+        BULLET_COLOR: '#66ff88',
+        BULLET_GLOW: 'rgba(102,255,136,0.55)',
+
+        // Visual — grey alien head popping out of a flying saucer
+        COLOR_SAUCER_TOP: '#d0d8e0',        // dome
+        COLOR_SAUCER_BODY: '#8a96a4',       // metal body
+        COLOR_SAUCER_DARK: '#4a5260',       // shadow
+        COLOR_SAUCER_RIM: '#2a3040',        // rim outline
+        COLOR_SAUCER_LIGHT: '#ffeaa0',      // lights on rim
+        COLOR_ALIEN_SKIN: '#b9c2b0',        // grey-green alien skin
+        COLOR_ALIEN_SKIN_DARK: '#7d8673',
+        COLOR_ALIEN_EYE: '#0a0a10',         // big black eyes
+        COLOR_ALIEN_EYE_HL: '#ffffff',
+        COLOR_DOME_GLOW: 'rgba(180,220,255,0.35)',
+    },
+};
+
+// Acid plant (obstacle)
+SpaceBoy.ACID_PLANT = {
+    COUNT_PER_LEVEL: 3,            // number of plants per level
+    WIDTH: 60,                     // plant base width (3x bigger)
+    HEIGHT: 72,                    // plant body height (3x bigger)
+    SHOOT_INTERVAL: 2,             // seconds between acid bursts
+    SHOOT_DURATION: 1,             // seconds acid shoots upward
+    ACID_WIDTH: 10,                // acid stream width (scaled up)
+    ACID_HEIGHT: 320,              // how high acid shoots (4x higher)
+    ACID_SPEED: 400,               // acid rise speed (px/sec)
+    SAFE_COLS_FROM_SPAWN: 10,      // minimum cols from spawn point
+    MIN_SPACING_COLS: 15,          // minimum cols between plants
+
+    // Colors — vivid alien palette to stand out from terrain
+    COLOR_STEM: '#8B1A8B',         // dark magenta stem
+    COLOR_BODY: '#CC22CC',         // vivid magenta body
+    COLOR_BODY_DARK: '#991199',    // darker magenta shading
+    COLOR_BODY_LIGHT: '#EE55EE',   // highlight
+    COLOR_MOUTH: '#440044',        // deep purple mouth interior
+    COLOR_ACID: '#aaff00',         // acid color
+    COLOR_ACID_GLOW: 'rgba(170, 255, 0, 0.4)',
+    COLOR_SPOTS: '#FF44FF',        // bright pink spots
+    COLOR_OUTLINE: '#FF00FF',      // neon magenta outline/glow
+};
 
 // Space gems
 SpaceBoy.GEM = {

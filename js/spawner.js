@@ -79,6 +79,9 @@
         var enemies = [];
         var seed = 1;
 
+        // Exclude boss arena from enemy spawning
+        var maxCol = LEVEL.PLAY_SCREENS * 30 - 1;
+
         var platforms = findPlatforms(tiles);
 
         // Separate ground segments from elevated platforms
@@ -107,8 +110,9 @@
             var enemyCol = plat.minCol + Math.floor(platWidth / 2);
             var enemyRow = plat.row - 1; // stand on top
 
-            // Skip if too close to spawn
+            // Skip if too close to spawn or inside boss arena
             if (Math.abs(enemyCol - spawnCol) < SPAWN.SPAWN_SAFE_COLS) continue;
+            if (enemyCol > maxCol) continue;
 
             var type = seededRand(seed++) < SPAWN.PLATFORM_CHARGER_RATIO ? 'charger' : 'walker';
             enemies.push({ type: type, col: enemyCol, row: enemyRow });
@@ -123,6 +127,7 @@
                 groundSegments[i - 1].minCol === seg.minCol) continue;
 
             for (var c = seg.minCol; c <= seg.maxCol; c++) {
+                if (c > maxCol) break;
                 // Only add if this is the top surface of ground
                 if (!isSolid(tiles, c, seg.row - 1)) {
                     groundCols.push({ col: c, row: seg.row - 1 });
@@ -186,6 +191,7 @@
             var row = SPAWN.FLYER_MIN_ROW + Math.floor(seededRand(seed++) * (SPAWN.FLYER_MAX_ROW - SPAWN.FLYER_MIN_ROW));
 
             if (Math.abs(col - spawnCol) < SPAWN.SPAWN_SAFE_COLS) continue;
+            if (col > maxCol) continue;
             if (isSolid(tiles, col, row)) continue;
 
             // Not too close to another flyer
