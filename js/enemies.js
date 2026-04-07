@@ -8,6 +8,51 @@
     var ENEMY = SpaceBoy.ENEMY;
     var TYPES = SpaceBoy.ENEMY_TYPES;
     var TILE = SpaceBoy.TILE;
+    var PHYSICS = SpaceBoy.PHYSICS;
+
+    // =========================================================================
+    // Enemy projectiles (e.g. frogger acid). Main loop updates/checks these.
+    // Each projectile: {x, y, vx, vy, radius, damage, life, color, glow, gravity}
+    // =========================================================================
+    var enemyProjectiles = [];
+
+    function updateEnemyProjectiles(dt, level) {
+        for (var i = enemyProjectiles.length - 1; i >= 0; i--) {
+            var p = enemyProjectiles[i];
+            if (p.gravity) p.vy += PHYSICS.GRAVITY * dt;
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.life -= dt;
+            // Remove if expired or hit solid tile
+            var col = Math.floor(p.x / TILE.SIZE);
+            var row = Math.floor(p.y / TILE.SIZE);
+            if (p.life <= 0 || level.isSolid(col, row)) {
+                enemyProjectiles.splice(i, 1);
+            }
+        }
+    }
+
+    function drawEnemyProjectiles(ctx, camera) {
+        for (var i = 0; i < enemyProjectiles.length; i++) {
+            var p = enemyProjectiles[i];
+            var sx = p.x - camera.x;
+            var sy = p.y - camera.y;
+            // Glow
+            ctx.fillStyle = p.glow;
+            ctx.beginPath();
+            ctx.arc(sx, sy, p.radius + 4, 0, Math.PI * 2);
+            ctx.fill();
+            // Core
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(sx, sy, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    function clearEnemyProjectiles() {
+        enemyProjectiles.length = 0;
+    }
 
     // =========================================================================
     // Hit particles — radiate from enemy when damaged but not killed
@@ -473,12 +518,297 @@
     }
 
     // =========================================================================
+    // Dasher — fast flying kamikaze, 1 HP. Patrols until it spots the player,
+    // then dives straight at them at high speed.
+    // =========================================================================
+    class Dasher extends Enemy {
+        constructor(x, y) {
+            super(x, y, 'dasher');
+            this.originX = x;
+            this.originY = y;
+            this.vx = TYPES.dasher.PATROL_SPEED;
+            this.vy = 0;
+            this.time = Math.random() * Math.PI * 2;
+            this.dashing = false;
+        }
+
+        update(dt, level, player) {
+            if (!this.alive) return;
+            this.blobTime += dt;
+            if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt;
+            this.updateDrip(dt);
+
+            var cfg = TYPES.dasher;
+
+            if (!this.dashing) {
+                // Patrol: float with slight bob until player enters sight
+                this.time += dt;
+                this.x += this.vx * dt;
+                this.y = this.originY + Math.sin(this.time * 3) * 6;
+
+                var frontCol = Math.floor((this.vx > 0 ? this.x + this.width : this.x - 1) / TILE.SIZE);
+                var bodyRow = Math.floor((this.y + this.height / 2) / TILE.SIZE);
+                if (level.isSolid(frontCol, bodyRow)) {
+                    this.vx *= -1;
+                }
+
+                // Detect player
+                var dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+                var dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < cfg.SIGHT_RANGE) {
+                    this.dashing = true;
+                    var inv = 1 / (dist || 1);
+                    this.vx = dx * inv * cfg.DASH_SPEED;
+                    this.vy = dy * inv * cfg.DASH_SPEED;
+                }
+            } else {
+                // Dash straight in the locked direction
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+
+                // Die against terrain (kamikaze splat)
+                var col = Math.floor((this.x + this.width / 2) / TILE.SIZE);
+                var row = Math.floor((this.y + this.height / 2) / TILE.SIZE);
+                if (level.isSolid(col, row)) {
+                    this.alive = false;
+                    spawnHitParticles(this.x + this.width / 2, this.y + this.height / 2, this.color);
+                }
+            }
+        }
+
+        draw(ctx, camera) {
+            if (!this.alive) return;
+            var sx = this.x - camera.x;
+            var sy = this.y - camera.y;
+            var flash = this.hitFlashTimer > 0;
+
+            ctx.save();
+
+            // Motion-blur streak behind dasher when dashing
+            if (this.dashing && !flash) {
+                var speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) || 1;
+                var tx = -this.vx / speed * 14;
+                var ty = -this.vy / speed * 14;
+                ctx.globalAlpha = 0.4;
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.moveTo(sx + this.width / 2, sy + this.height / 2);
+                ctx.lineTo(sx + this.width / 2 + tx, sy + this.height / 2 + ty);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            }
+
+            var center = drawEnemyBlob(ctx, sx, sy, this.width, this.height,
+                this.blobTime, this.color, this.colorDark, this.colorGlow, flash);
+
+            if (!flash) {
+                drawEnemyEyes(ctx, center.cx, center.cy, this.vx);
+
+                // Angry underbite fangs — kamikaze teeth
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.moveTo(center.cx - 4, center.cy + 2);
+                ctx.lineTo(center.cx - 2, center.cy + 6);
+                ctx.lineTo(center.cx, center.cy + 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(center.cx, center.cy + 2);
+                ctx.lineTo(center.cx + 2, center.cy + 6);
+                ctx.lineTo(center.cx + 4, center.cy + 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+    }
+
+    // =========================================================================
+    // Frogger — grounded 3-HP blob that hops and spits acid in a parabolic arc.
+    // =========================================================================
+    function rand(min, max) { return min + Math.random() * (max - min); }
+
+    class Frogger extends Enemy {
+        constructor(x, y) {
+            super(x, y, 'frogger');
+            this.vx = 0;
+            this.vy = 0;
+            this.onGround = false;
+            this.facingRight = Math.random() < 0.5;
+            this.hopCooldown = rand(TYPES.frogger.HOP_INTERVAL_MIN, TYPES.frogger.HOP_INTERVAL_MAX);
+            this.shootCooldown = rand(TYPES.frogger.SHOOT_INTERVAL_MIN, TYPES.frogger.SHOOT_INTERVAL_MAX);
+            this.hopSquash = 0;     // visual squash-stretch
+        }
+
+        update(dt, level, player) {
+            if (!this.alive) return;
+            this.blobTime += dt;
+            if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt;
+            this.updateDrip(dt);
+
+            var cfg = TYPES.frogger;
+
+            // --- Gravity + tile collision (axis-by-axis) ---
+            this.vy += PHYSICS.GRAVITY * dt;
+            if (this.vy > PHYSICS.TERMINAL_VELOCITY) this.vy = PHYSICS.TERMINAL_VELOCITY;
+
+            // Face player if in sight range
+            var dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+            if (Math.abs(dx) < cfg.SIGHT_RANGE) {
+                this.facingRight = dx > 0;
+            }
+
+            // Horizontal move
+            this.x += this.vx * dt;
+            var col, row;
+            if (this.vx !== 0) {
+                var edgeX = this.vx > 0 ? this.x + this.width : this.x;
+                col = Math.floor(edgeX / TILE.SIZE);
+                for (var ry = Math.floor(this.y / TILE.SIZE); ry <= Math.floor((this.y + this.height - 1) / TILE.SIZE); ry++) {
+                    if (level.isSolid(col, ry)) {
+                        if (this.vx > 0) this.x = col * TILE.SIZE - this.width - 0.01;
+                        else this.x = (col + 1) * TILE.SIZE + 0.01;
+                        this.vx = 0;
+                        this.facingRight = !this.facingRight;
+                        break;
+                    }
+                }
+            }
+
+            // Vertical move
+            this.y += this.vy * dt;
+            this.onGround = false;
+            var edgeY = this.vy > 0 ? this.y + this.height : this.y;
+            row = Math.floor(edgeY / TILE.SIZE);
+            for (var cx = Math.floor(this.x / TILE.SIZE); cx <= Math.floor((this.x + this.width - 1) / TILE.SIZE); cx++) {
+                if (level.isSolid(cx, row)) {
+                    if (this.vy > 0) {
+                        this.y = row * TILE.SIZE - this.height - 0.01;
+                        this.onGround = true;
+                    } else {
+                        this.y = (row + 1) * TILE.SIZE + 0.01;
+                    }
+                    this.vy = 0;
+                    break;
+                }
+            }
+
+            // --- Hop timer (only when grounded) ---
+            if (this.onGround) {
+                this.vx = 0;
+                this.hopCooldown -= dt;
+                if (this.hopCooldown <= 0) {
+                    this.hopCooldown = rand(cfg.HOP_INTERVAL_MIN, cfg.HOP_INTERVAL_MAX);
+                    this.vy = cfg.HOP_SPEED_Y;
+                    this.vx = (this.facingRight ? 1 : -1) * cfg.HOP_SPEED_X;
+                    this.hopSquash = 0.6;   // squash before launching (visual)
+                }
+            }
+
+            if (this.hopSquash > 0) this.hopSquash -= dt * 3;
+
+            // --- Shoot acid (parabolic arc, gravity-affected) ---
+            this.shootCooldown -= dt;
+            if (this.shootCooldown <= 0 && Math.abs(dx) < cfg.SIGHT_RANGE) {
+                this.shootCooldown = rand(cfg.SHOOT_INTERVAL_MIN, cfg.SHOOT_INTERVAL_MAX);
+                var dir = this.facingRight ? 1 : -1;
+                var mx = this.x + this.width / 2 + dir * (this.width / 2);
+                var my = this.y + 4;
+                enemyProjectiles.push({
+                    x: mx,
+                    y: my,
+                    vx: dir * cfg.ACID_SPEED_X,
+                    vy: cfg.ACID_SPEED_Y,
+                    radius: cfg.ACID_RADIUS,
+                    damage: cfg.ACID_DAMAGE,
+                    life: cfg.ACID_LIFETIME,
+                    color: cfg.ACID_COLOR,
+                    glow: cfg.ACID_GLOW,
+                    gravity: true,
+                });
+            }
+        }
+
+        draw(ctx, camera) {
+            if (!this.alive) return;
+            var sx = this.x - camera.x;
+            var sy = this.y - camera.y;
+            var flash = this.hitFlashTimer > 0;
+
+            var cfg = TYPES.frogger;
+
+            // Squash when crouched for a hop
+            var drawW = this.width;
+            var drawH = this.height;
+            var drawY = sy;
+            if (this.hopSquash > 0) {
+                drawH = this.height * (1 - this.hopSquash * 0.25);
+                drawY = sy + (this.height - drawH);
+            } else if (!this.onGround) {
+                drawH = this.height * 1.08;
+                drawW = this.width * 0.92;
+                sx += (this.width - drawW) / 2;
+            }
+
+            ctx.save();
+            var center = drawEnemyBlob(ctx, sx, drawY, drawW, drawH,
+                this.blobTime, this.color, this.colorDark, this.colorGlow, flash);
+
+            if (!flash) {
+                // Pale belly patch
+                ctx.fillStyle = cfg.BELLY_COLOR;
+                ctx.beginPath();
+                ctx.ellipse(center.cx, center.cy + drawH * 0.2, drawW * 0.3, drawH * 0.18, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Big bulging frog eyes
+                var eyeOffX = 6;
+                var eyeY = center.cy - drawH * 0.28;
+                var lookDir = this.facingRight ? 1 : -1;
+
+                ctx.fillStyle = cfg.EYE_COLOR;
+                ctx.beginPath();
+                ctx.arc(center.cx - eyeOffX, eyeY, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(center.cx + eyeOffX, eyeY, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Slit pupils
+                ctx.fillStyle = '#111111';
+                ctx.beginPath();
+                ctx.ellipse(center.cx - eyeOffX + lookDir, eyeY, 1, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(center.cx + eyeOffX + lookDir, eyeY, 1, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Wide grin
+                ctx.strokeStyle = cfg.COLOR_DARK;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(center.cx, center.cy + 1, 6, 0.1, Math.PI - 0.1);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+    }
+
+    // =========================================================================
     // Exports
     // =========================================================================
     SpaceBoy.Walker = Walker;
     SpaceBoy.Charger = Charger;
     SpaceBoy.Flyer = Flyer;
+    SpaceBoy.Dasher = Dasher;
+    SpaceBoy.Frogger = Frogger;
     SpaceBoy.updateEnemyParticles = updateParticles;
     SpaceBoy.drawEnemyParticles = drawParticles;
     SpaceBoy.clearEnemyParticles = clearParticles;
+    SpaceBoy.enemyProjectiles = enemyProjectiles;
+    SpaceBoy.updateEnemyProjectiles = updateEnemyProjectiles;
+    SpaceBoy.drawEnemyProjectiles = drawEnemyProjectiles;
+    SpaceBoy.clearEnemyProjectiles = clearEnemyProjectiles;
 })();

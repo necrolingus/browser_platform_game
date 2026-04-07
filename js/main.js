@@ -6,10 +6,12 @@
     var GAME   = SpaceBoy.GAME;
     var BULLET = SpaceBoy.BULLET;
     var SUPER  = SpaceBoy.SUPER_BULLET;
+    var MEGA   = SpaceBoy.MEGA_BULLET;
     var ENEMY  = SpaceBoy.ENEMY;
     var GEM_CONST = SpaceBoy.GEM;
     var TILE   = SpaceBoy.TILE;
     var LEVEL  = SpaceBoy.LEVEL;
+    var LEVELS = SpaceBoy.LEVELS;
 
     var Input   = SpaceBoy.Input;
     var Camera  = SpaceBoy.Camera;
@@ -18,6 +20,8 @@
     var Walker  = SpaceBoy.Walker;
     var Charger = SpaceBoy.Charger;
     var Flyer   = SpaceBoy.Flyer;
+    var Dasher  = SpaceBoy.Dasher;
+    var Frogger = SpaceBoy.Frogger;
     var SpaceGem = SpaceBoy.SpaceGem;
     var drawHUD = SpaceBoy.drawHUD;
     var moveX       = SpaceBoy.moveX;
@@ -25,7 +29,6 @@
     var checkLava   = SpaceBoy.checkLava;
     var aabb        = SpaceBoy.aabb;
     var circleRect  = SpaceBoy.circleRect;
-    var level1Data  = SpaceBoy.level1Data;
 
     // --- Canvas setup ---
     var canvas = document.getElementById('game-canvas');
@@ -38,9 +41,17 @@
     var deathScreen = document.getElementById('death-screen');
     var winScreen   = document.getElementById('win-screen');
     var winStats    = document.getElementById('win-stats');
+    var winMessage  = document.getElementById('win-message');
+    var winNextBtn  = document.getElementById('win-next-btn');
+    var storyScreen = document.getElementById('story-screen');
+    var storyText   = document.getElementById('story-text');
+    var storyBtn    = document.getElementById('story-btn');
+    var storyHints  = document.getElementById('story-hints');
+    var comingSoonScreen = document.getElementById('coming-soon-screen');
+    var comingSoonText   = document.getElementById('coming-soon-text');
     var mobileScreen = document.getElementById('mobile-screen');
 
-    // --- Mobile / touch detection — block gameplay on touch-only devices ---
+    // --- Mobile / touch detection ---
     var isMobile = (function () {
         var ua = navigator.userAgent || '';
         var touchOnly = ('ontouchstart' in window) && !window.matchMedia('(pointer: fine)').matches;
@@ -53,13 +64,17 @@
     }
 
     // --- State ---
-    var state = 'start'; // 'start' | 'playing' | 'dead' | 'won'
+    // 'start' | 'story' | 'coming_soon' | 'playing' | 'dead' | 'won'
+    var state = 'start';
     var input, camera, player, level, enemies, gems, bullets, acidPlants;
     var boss = null;
     var arenaBounds = null;
     var score = 0;
     var gemsCollected = 0;
     var lastTime = 0;
+
+    var currentLevelNum = 1;
+    var currentLevelCfg = null;
 
     // Kill tracking per enemy type
     var killTracker = {};
@@ -74,29 +89,52 @@
         }
     }
 
-    function initLevel() {
-        // Validate level data before loading
-        SpaceBoy.validateLevel(level1Data);
+    function getLevelData(levelCfg) {
+        return SpaceBoy[levelCfg.DATA_KEY];
+    }
 
-        // Generate enemies dynamically from tile data
-        level1Data.enemies = SpaceBoy.generateEnemies(level1Data);
+    function initLevel(levelNum) {
+        currentLevelNum = levelNum;
+        currentLevelCfg = LEVELS[levelNum];
 
-        level = new Level(level1Data);
+        // Resize the global LEVEL singleton for the chosen level so that
+        // camera/spawner/level/etc. all see the right dimensions.
+        SpaceBoy.applyLevelDimensions(currentLevelCfg);
+
+        var data = getLevelData(currentLevelCfg);
+
+        // Validate + generate enemies/acid plants for this level
+        SpaceBoy.validateLevel(data);
+        data.enemies = SpaceBoy.generateEnemies(data, currentLevelCfg.SPAWN);
+
+        level = new Level(data);
         camera = new Camera();
         player = new Player(level.spawnX, level.spawnY);
+        player.setWeapons(currentLevelCfg.WEAPONS);
         bullets = [];
         enemies = spawnEnemies(level.enemyDefs);
         gems = spawnGems(level.gemDefs);
-        acidPlants = SpaceBoy.generateAcidPlants(level1Data);
+        acidPlants = SpaceBoy.generateAcidPlants(data, currentLevelCfg.ACID_PLANTS);
 
-        // --- Boss + arena (level 1 = alien saucer) ---
-        arenaBounds = SpaceBoy.getBossArenaBounds();
-        boss = new SpaceBoy.Boss(level1Data.bossType || 'alien_saucer', arenaBounds);
+        // Acid plants are placed after gems are spawned, so a gem can end up
+        // sitting inside a plant's body where the player can never reach it.
+        // Lift any overlapping gems above the plant so they remain collectable.
+        relocateGemsAwayFromPlants(gems, acidPlants);
+
+        // --- Boss + arena (only if this level has a boss) ---
+        if (currentLevelCfg.BOSS_TYPE) {
+            arenaBounds = SpaceBoy.getBossArenaBounds();
+            boss = new SpaceBoy.Boss(currentLevelCfg.BOSS_TYPE, arenaBounds);
+        } else {
+            arenaBounds = null;
+            boss = null;
+        }
 
         score = 0;
         gemsCollected = 0;
         resetKillTracker();
         SpaceBoy.clearEnemyParticles();
+        SpaceBoy.clearEnemyProjectiles();
         SpaceBoy.Background.generate();
     }
 
@@ -108,9 +146,28 @@
                 case 'walker':  return new Walker(x, y);
                 case 'charger': return new Charger(x, y);
                 case 'flyer':   return new Flyer(x, y);
+                case 'dasher':  return new Dasher(x, y);
+                case 'frogger': return new Frogger(x, y);
                 default: return new Walker(x, y);
             }
         });
+    }
+
+    // Move any gems that overlap an acid plant's body up and away so they
+    // can't get stuck inside the flower where the player can't grab them.
+    function relocateGemsAwayFromPlants(gemList, plantList) {
+        if (!plantList || plantList.length === 0) return;
+        for (var i = 0; i < gemList.length; i++) {
+            var gem = gemList[i];
+            for (var p = 0; p < plantList.length; p++) {
+                var plant = plantList[p];
+                var gemBox = { x: gem.x, y: gem.y, width: gem.size, height: gem.size };
+                if (aabb(gemBox, plant)) {
+                    // Lift the gem one tile above the plant's top edge.
+                    gem.y = plant.y - TILE.SIZE - gem.size / 2;
+                }
+            }
+        }
     }
 
     function spawnGems(defs) {
@@ -125,33 +182,141 @@
     // --- Input setup (persists across restarts) ---
     input = new Input(canvas);
 
-    // --- Screen click handlers ---
-    function startGame() {
+    // =========================================================================
+    // Screen flow
+    // =========================================================================
+    function hideAllScreens() {
+        startScreen.classList.add('hidden');
+        deathScreen.classList.add('hidden');
+        winScreen.classList.add('hidden');
+        if (storyScreen) storyScreen.classList.add('hidden');
+        if (comingSoonScreen) comingSoonScreen.classList.add('hidden');
+    }
+
+    function showStartScreen() {
+        state = 'start';
+        hideAllScreens();
+        startScreen.classList.remove('hidden');
+    }
+
+    function showStoryScreen(levelNum) {
+        var cfg = LEVELS[levelNum];
+        if (!cfg.INTRO_STORY) {
+            // No story — go straight in
+            startGame(levelNum);
+            return;
+        }
+        state = 'story';
+        currentLevelNum = levelNum;
+        hideAllScreens();
+        storyText.textContent = cfg.INTRO_STORY;
+        // Show new-mechanics hints only on levels that introduce them (level 2+)
+        if (storyHints) {
+            if (cfg.WEAPONS && cfg.WEAPONS.indexOf('mega') >= 0) {
+                storyHints.classList.remove('hidden');
+            } else {
+                storyHints.classList.add('hidden');
+            }
+        }
+        storyScreen.classList.remove('hidden');
+    }
+
+    function showComingSoon(levelNum) {
+        var cfg = LEVELS[levelNum];
+        state = 'coming_soon';
+        hideAllScreens();
+        comingSoonText.textContent = cfg.COMING_SOON_MESSAGE;
+        comingSoonScreen.classList.remove('hidden');
+    }
+
+    function startGame(levelNum) {
+        hideAllScreens();
         state = 'playing';
-        initLevel();
+        initLevel(levelNum);
         lastTime = performance.now();
         canvas.focus();
         requestAnimationFrame(gameLoop);
     }
 
-    function onScreenClick() {
-        if (isMobile) return; // gameplay blocked on touch-only devices
-        if (state === 'start') {
-            startScreen.classList.add('hidden');
-            startGame();
-        } else if (state === 'dead') {
-            deathScreen.classList.add('hidden');
-            startGame();
-        } else if (state === 'won') {
-            winScreen.classList.add('hidden');
-            startGame();
+    // =========================================================================
+    // Click handlers
+    // =========================================================================
+
+    // Level select buttons on start screen
+    function onLevelButtonClick(e) {
+        e.stopPropagation();
+        if (isMobile) return;
+        var levelNum = parseInt(e.currentTarget.getAttribute('data-level'), 10);
+        var cfg = LEVELS[levelNum];
+        if (cfg.COMING_SOON) {
+            showComingSoon(levelNum);
+            return;
+        }
+        if (cfg.INTRO_STORY) {
+            showStoryScreen(levelNum);
+        } else {
+            startGame(levelNum);
         }
     }
-    startScreen.addEventListener('click', onScreenClick);
-    deathScreen.addEventListener('click', onScreenClick);
-    winScreen.addEventListener('click', onScreenClick);
 
-    // --- Game loop ---
+    var levelBtns = document.querySelectorAll('#start-screen .level-btn');
+    for (var i = 0; i < levelBtns.length; i++) {
+        levelBtns[i].addEventListener('click', onLevelButtonClick);
+    }
+
+    // Story screen "Start Mission" button
+    if (storyBtn) {
+        storyBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            startGame(currentLevelNum);
+        });
+    }
+
+    // Coming-soon screen click → back to start
+    if (comingSoonScreen) {
+        comingSoonScreen.addEventListener('click', function () {
+            if (isMobile) return;
+            showStartScreen();
+        });
+    }
+
+    // Death screen → retry current level
+    deathScreen.addEventListener('click', function () {
+        if (isMobile) return;
+        if (state !== 'dead') return;
+        startGame(currentLevelNum);
+    });
+
+    // Win screen click → back to start screen
+    winScreen.addEventListener('click', function () {
+        if (isMobile) return;
+        if (state !== 'won') return;
+        showStartScreen();
+    });
+
+    // "Go to next level" button on win screen
+    if (winNextBtn) {
+        winNextBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (isMobile) return;
+            var nextLevel = currentLevelNum + 1;
+            if (LEVELS[nextLevel]) {
+                if (LEVELS[nextLevel].COMING_SOON) {
+                    showComingSoon(nextLevel);
+                } else if (LEVELS[nextLevel].INTRO_STORY) {
+                    showStoryScreen(nextLevel);
+                } else {
+                    startGame(nextLevel);
+                }
+            } else {
+                showStartScreen();
+            }
+        });
+    }
+
+    // =========================================================================
+    // Game loop
+    // =========================================================================
     function gameLoop(timestamp) {
         if (state !== 'playing') return;
 
@@ -180,7 +345,7 @@
             var plant = acidPlants[ap];
             plant.update(dt);
 
-            // Solid body collision — push player out horizontally so they must jump over
+            // Solid body collision
             if (aabb(player, plant)) {
                 var playerCenter = player.x + player.width / 2;
                 var plantCenter = plant.x + plant.width / 2;
@@ -201,16 +366,15 @@
             player.kill();
         }
 
-        // --- Boss arena gate ---
-        // Once the player crosses into the arena, lock the camera to the arena
-        // left edge and prevent the player walking back out. Activates the boss.
-        var inArena = player.x + player.width / 2 >= arenaBounds.x;
-        if (inArena && boss && !boss.active && boss.alive) {
-            boss.activate();
-        }
-        if (inArena) {
-            // Lock player inside arena bounds
-            if (player.x < arenaBounds.x) { player.x = arenaBounds.x; player.vx = 0; }
+        // --- Boss arena gate (only if level has a boss) ---
+        if (boss && arenaBounds) {
+            var inArena = player.x + player.width / 2 >= arenaBounds.x;
+            if (inArena && !boss.active && boss.alive) {
+                boss.activate();
+            }
+            if (inArena) {
+                if (player.x < arenaBounds.x) { player.x = arenaBounds.x; player.vx = 0; }
+            }
         }
 
         if (player.x < 0) { player.x = 0; player.vx = 0; }
@@ -220,28 +384,27 @@
         }
 
         // --- Camera ---
-        if (inArena) {
-            // Lock camera to arena screen
-            camera.x = arenaBounds.x;
-            camera.y = 0;
+        if (boss && arenaBounds) {
+            var inArena2 = player.x + player.width / 2 >= arenaBounds.x;
+            if (inArena2) {
+                camera.x = arenaBounds.x;
+                camera.y = 0;
+            } else {
+                camera.follow(player);
+                if (camera.x + GAME.CANVAS_WIDTH > arenaBounds.x) {
+                    camera.x = arenaBounds.x - GAME.CANVAS_WIDTH;
+                }
+            }
         } else {
             camera.follow(player);
-            // Also clamp so the camera never reveals the arena early
-            if (camera.x + GAME.CANVAS_WIDTH > arenaBounds.x) {
-                camera.x = arenaBounds.x - GAME.CANVAS_WIDTH;
-            }
         }
 
         // --- Boss ---
         if (boss) {
             boss.update(dt, player);
-
-            // Player contact with living boss body = take damage
             if (player.alive && boss.alive && !boss._dying && boss.active && aabb(player, boss.rect())) {
                 player.takeDamage();
             }
-
-            // Boss bullets hitting player
             if (player.alive && boss.checkBulletHitsPlayer(player)) {
                 player.takeDamage();
             }
@@ -251,7 +414,8 @@
         for (var e = 0; e < enemies.length; e++) {
             var enemy = enemies[e];
             if (!enemy.alive) continue;
-            if (enemy.type === 'charger') {
+            // Some enemies need the player passed in
+            if (enemy.type === 'charger' || enemy.type === 'dasher' || enemy.type === 'frogger') {
                 enemy.update(dt, level, player);
             } else {
                 enemy.update(dt, level);
@@ -265,7 +429,18 @@
         // --- Enemy particles ---
         SpaceBoy.updateEnemyParticles(dt);
 
-        // --- Bullets (normal + super) ---
+        // --- Enemy projectiles (frogger acid etc.) ---
+        SpaceBoy.updateEnemyProjectiles(dt, level);
+        var projs = SpaceBoy.enemyProjectiles;
+        for (var pi = projs.length - 1; pi >= 0; pi--) {
+            var p = projs[pi];
+            if (player.alive && circleRect(p.x, p.y, p.radius, player.x, player.y, player.width, player.height)) {
+                player.takeDamage();
+                projs.splice(pi, 1);
+            }
+        }
+
+        // --- Bullets (normal + super + mega) ---
         for (var i = bullets.length - 1; i >= 0; i--) {
             var b = bullets[i];
             b.x += b.vx * dt;
@@ -279,9 +454,11 @@
             var row = Math.floor(b.y / TILE.SIZE);
             if (level.isSolid(col, row)) { bullets.splice(i, 1); continue; }
 
+            // Bullet radius — varies by type
+            var bulletRadius = b.isMega ? MEGA.RADIUS : (b.isSuper ? SUPER.RADIUS : BULLET.RADIUS);
+
             // Bullet vs enemies
             var hit = false;
-            var bulletRadius = b.isSuper ? SUPER.RADIUS : BULLET.RADIUS;
             for (var j = 0; j < enemies.length; j++) {
                 var enemy = enemies[j];
                 if (!enemy.alive) continue;
@@ -293,10 +470,11 @@
                         player.addKill();
                     }
                     hit = true;
-                    break;
+                    // Mega bullets pass through enemies (overkill)
+                    if (!b.isMega) break;
                 }
             }
-            if (hit) { bullets.splice(i, 1); continue; }
+            if (hit && !b.isMega) { bullets.splice(i, 1); continue; }
 
             // Bullet vs boss
             if (boss && boss.alive && !boss._dying && boss.active) {
@@ -322,6 +500,7 @@
             if (aabb(player, gemBox)) {
                 gem.collected = true;
                 gemsCollected++;
+                player.addGem();
             }
         }
 
@@ -331,10 +510,21 @@
             deathScreen.classList.remove('hidden');
         }
 
-        // --- Win (boss fully defeated, including death animation) ---
-        if (boss && !boss.alive && player.alive && state === 'playing') {
-            state = 'won';
-            showWinScreen();
+        // --- Win conditions ---
+        if (state === 'playing' && player.alive) {
+            if (boss) {
+                // Boss level — kill the boss
+                if (!boss.alive) {
+                    state = 'won';
+                    showWinScreen();
+                }
+            } else {
+                // No boss — reach the right edge of the level
+                if (player.x + player.width >= LEVEL.WIDTH_PX - 4) {
+                    state = 'won';
+                    showWinScreen();
+                }
+            }
         }
     }
 
@@ -342,9 +532,15 @@
         // Build a stat summary
         var totalKills = 0;
         var lines = [];
-        var typeNames = { walker: 'Walkers', charger: 'Chargers', flyer: 'Flyers' };
+        var typeNames = {
+            walker: 'Walkers',
+            charger: 'Chargers',
+            flyer: 'Flyers',
+            dasher: 'Dashers',
+            frogger: 'Froggers',
+        };
         for (var key in killTracker) {
-            if (killTracker.hasOwnProperty(key)) {
+            if (killTracker.hasOwnProperty(key) && killTracker[key] > 0) {
                 totalKills += killTracker[key];
                 lines.push((typeNames[key] || key) + ': ' + killTracker[key]);
             }
@@ -353,9 +549,27 @@
         html += '<div>Score: <span style="color:#ffcc33">' + score + '</span></div>';
         html += '<div>Gems: <span style="color:#00ffaa">' + gemsCollected + '</span></div>';
         html += '<div>Total Kills: <span style="color:#ff6666">' + totalKills + '</span></div>';
-        html += '<div style="margin-top:6px; font-size:13px; color:#88a;">' + lines.join(' &nbsp;·&nbsp; ') + '</div>';
-        html += '<div style="margin-top:6px;">Boss: <span style="color:#ff88aa">DEFEATED</span></div>';
+        html += '<div style="margin-top:6px; font-size:12px; color:#88a;">' + lines.join(' &nbsp;·&nbsp; ') + '</div>';
+        if (boss) {
+            html += '<div style="margin-top:6px;">Boss: <span style="color:#ff88aa">DEFEATED</span></div>';
+        }
         winStats.innerHTML = html;
+
+        // Per-level win message
+        if (winMessage) {
+            winMessage.textContent = currentLevelCfg.WIN_MESSAGE || '';
+        }
+
+        // Show "Go to next level" button only if a real next level exists
+        if (winNextBtn) {
+            var next = LEVELS[currentLevelNum + 1];
+            if (next && !next.COMING_SOON) {
+                winNextBtn.classList.remove('hidden');
+            } else {
+                winNextBtn.classList.add('hidden');
+            }
+        }
+
         winScreen.classList.remove('hidden');
     }
 
@@ -368,7 +582,7 @@
         // Level tiles
         level.draw(ctx, camera);
 
-        // Acid plants (behind enemies/player, on top of tiles)
+        // Acid plants
         for (var ap = 0; ap < acidPlants.length; ap++) acidPlants[ap].draw(ctx, camera);
 
         // Gems
@@ -377,11 +591,14 @@
         // Enemies
         for (var e = 0; e < enemies.length; e++) enemies[e].draw(ctx, camera);
 
-        // Boss (drawn before enemy particles so explosions can layer over)
+        // Boss
         if (boss) boss.draw(ctx, camera);
 
         // Enemy hit particles
         SpaceBoy.drawEnemyParticles(ctx, camera);
+
+        // Enemy projectiles (acid etc.)
+        SpaceBoy.drawEnemyProjectiles(ctx, camera);
 
         // Bullets
         for (var i = 0; i < bullets.length; i++) {
@@ -389,8 +606,21 @@
             var sx = b.x - camera.x;
             var sy = b.y - camera.y;
 
-            if (b.isSuper) {
-                // Super bullet — bigger, glowing cyan
+            if (b.isMega) {
+                // Mega bullet — huge magenta glow with white-hot core
+                ctx.fillStyle = MEGA.GLOW_COLOR;
+                ctx.beginPath();
+                ctx.arc(sx, sy, MEGA.RADIUS * 1.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = MEGA.COLOR;
+                ctx.beginPath();
+                ctx.arc(sx, sy, MEGA.RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = MEGA.CORE_COLOR;
+                ctx.beginPath();
+                ctx.arc(sx, sy, MEGA.RADIUS * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (b.isSuper) {
                 ctx.fillStyle = SUPER.GLOW_COLOR;
                 ctx.beginPath();
                 ctx.arc(sx, sy, SUPER.RADIUS * 2, 0, Math.PI * 2);

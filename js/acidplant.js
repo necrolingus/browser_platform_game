@@ -206,12 +206,13 @@
      * Generate acid plant positions for a level.
      * Places plants on ground tiles, spaced apart, away from spawn.
      */
-    function generatePlants(levelData) {
+    function generatePlants(levelData, plantCount) {
         var tiles = levelData.tiles;
         var spawnCol = levelData.spawn.x;
         var H = tiles.length;
         var W = tiles[0].length;
         var maxCol = LEVEL.PLAY_SCREENS * 30 - 1; // keep out of boss arena
+        var targetCount = (plantCount != null) ? plantCount : AP.COUNT_PER_LEVEL;
 
         // Find ground-top columns (topmost ground row with air above)
         var groundCols = [];
@@ -248,7 +249,7 @@
             groundCols[j] = tmp;
         }
 
-        for (var i = 0; i < groundCols.length && plants.length < AP.COUNT_PER_LEVEL; i++) {
+        for (var i = 0; i < groundCols.length && plants.length < targetCount; i++) {
             var pos = groundCols[i];
             var tooClose = false;
             for (var p = 0; p < plants.length; p++) {

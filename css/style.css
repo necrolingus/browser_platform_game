@@ -38,7 +38,9 @@ canvas#game-canvas {
 #start-screen,
 #death-screen,
 #win-screen,
-#mobile-screen {
+#mobile-screen,
+#story-screen,
+#coming-soon-screen {
     position: absolute;
     top: 0;
     left: 0;
@@ -56,7 +58,9 @@ canvas#game-canvas {
 #start-screen h1,
 #death-screen h1,
 #win-screen h1,
-#mobile-screen h1 {
+#mobile-screen h1,
+#story-screen h1,
+#coming-soon-screen h1 {
     font-size: 48px;
     color: #00ccff;
     text-shadow: 0 0 20px rgba(0, 204, 255, 0.6);
@@ -66,10 +70,31 @@ canvas#game-canvas {
 #start-screen p,
 #death-screen p,
 #win-screen p,
-#mobile-screen p {
+#mobile-screen p,
+#story-screen p,
+#coming-soon-screen p {
     font-size: 18px;
     color: #aaa;
     margin-bottom: 8px;
+}
+
+/* Story + win screens use larger body copy so the narrative and end-of-level
+   summary are easy to read at a glance. Inline styles inside the markup for
+   colors / max-width still take precedence over font-size. */
+#story-screen #story-text,
+#win-screen #win-message {
+    font-size: 22px;
+    line-height: 1.55;
+}
+
+#story-screen #story-hints p {
+    font-size: 18px;
+    margin-bottom: 6px;
+}
+
+#win-screen #win-stats {
+    font-size: 18px !important;
+    line-height: 1.6 !important;
 }
 
 #mobile-screen {
@@ -78,4 +103,33 @@ canvas#game-canvas {
 
 .hidden {
     display: none !important;
+}
+
+.level-select {
+    display: flex;
+    gap: 14px;
+    margin-top: 22px;
+}
+
+.level-btn {
+    background: #0a1428;
+    color: #00ccff;
+    border: 2px solid #00ccff;
+    padding: 10px 22px;
+    font-family: monospace;
+    font-size: 16px;
+    cursor: pointer;
+    text-shadow: 0 0 8px rgba(0, 204, 255, 0.6);
+    box-shadow: 0 0 12px rgba(0, 204, 255, 0.25);
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+
+.level-btn:hover {
+    background: #00ccff;
+    color: #0a1428;
+    text-shadow: none;
+}
+
+.level-btn:active {
+    transform: scale(0.96);
 }

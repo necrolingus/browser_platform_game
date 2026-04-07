@@ -11,6 +11,10 @@ SpaceBoy.GAME = {
     CANVAS_WIDTH: 960,
     CANVAS_HEIGHT: 540,
     BACKGROUND_COLOR: '#0b0e17',
+
+    // Dev / testing flag — when true, the player ignores all damage so you
+    // can sprint through levels to test layouts. Leave false for normal play.
+    GOD_MODE: false,
 };
 
 // Grid / tile system
@@ -19,15 +23,27 @@ SpaceBoy.TILE = {
 };
 
 // Level dimensions (in tiles)
-// NOTE: SCREENS is the total level width including the final boss arena screen.
-// PLAY_SCREENS is the playable area (everything before the arena).
+// These are the DEFAULTS (initially set to level 1's dimensions). When a level
+// is loaded, SpaceBoy.applyLevelDimensions(levelCfg) swaps these to match the
+// selected level so spawner/camera/etc. keep working without knowing which
+// level they're in.
 SpaceBoy.LEVEL = {
-    SCREENS: 5,                                          // 4 play screens + 1 boss arena
-    PLAY_SCREENS: 4,                                     // cols 0..(PLAY_SCREENS*30)-1 = normal play
-    WIDTH_TILES: Math.floor(960 / 32) * 5,               // 30 tiles/screen × 5 = 150
-    HEIGHT_TILES: Math.floor(540 / 32),                   // 16 tiles high (512px used)
-    WIDTH_PX: Math.floor(960 / 32) * 5 * 32,             // 4800 px
-    HEIGHT_PX: Math.floor(540 / 32) * 32,                // 512 px  (fits in 540 canvas)
+    SCREENS: 5,
+    PLAY_SCREENS: 4,
+    WIDTH_TILES: Math.floor(960 / 32) * 5,
+    HEIGHT_TILES: Math.floor(540 / 32),
+    WIDTH_PX: Math.floor(960 / 32) * 5 * 32,
+    HEIGHT_PX: Math.floor(540 / 32) * 32,
+};
+
+// Rewrite LEVEL values for the currently-loaded level config.
+SpaceBoy.applyLevelDimensions = function (levelCfg) {
+    var L = SpaceBoy.LEVEL;
+    L.SCREENS = levelCfg.SCREENS;
+    L.PLAY_SCREENS = levelCfg.PLAY_SCREENS;
+    L.WIDTH_TILES = 30 * levelCfg.SCREENS;
+    L.WIDTH_PX = L.WIDTH_TILES * 32;
+    // height is constant across levels
 };
 
 // Tile types (used in level maps)
@@ -122,6 +138,23 @@ SpaceBoy.PLAYER = {
         BICEP_BULGE: 3,             // extra radius for the bicep bump
     },
 
+    // --- Long flowy "Italian Stallion" white hair ---
+    // 50 years passed between Level 1 and Level 2, so Space Boy! has aged
+    // gracefully into a silver-haired action movie protagonist.
+    HAIR: {
+        COLOR: '#f5f5f5',           // creamy white
+        COLOR_DARK: '#bdbdbd',      // mid-grey for shading the under-strands
+        COLOR_HIGHLIGHT: '#ffffff', // pure white highlight strand
+        BACK_STRANDS: 5,            // long flowy strands behind the head
+        BACK_LENGTH: 28,            // px length of the longest back strand
+        BACK_WIDTH: 4,              // base thickness of back strands
+        FRINGE_STRANDS: 4,          // fringe strands across the forehead
+        FRINGE_LENGTH: 10,          // px length of fringe strands
+        FRINGE_WIDTH: 3,
+        FLOW_AMP: 3.5,              // px wobble amplitude on hair tips
+        FLOW_SPEED: 2.2,            // wobble cycles/sec
+    },
+
     // --- Oversized gun visual (30% bigger) ---
     GUN: {
         BODY_LENGTH: 36,             // gun body length
@@ -136,6 +169,16 @@ SpaceBoy.PLAYER = {
         COLOR_MUZZLE: '#ffaa00',     // muzzle flash color
         COLOR_DETAIL: '#99aacc',     // accent line
         MUZZLE_FLASH_TIME: 0.06,    // seconds flash is visible after shot
+
+        // --- Mega-gun palette (used when MEGA weapon is selected) ---
+        // Same shape as the normal gun, just recolored to match the mega
+        // bullet's magenta theme so the player can see at a glance which
+        // weapon is active.
+        MEGA_COLOR_BODY: '#7722aa',
+        MEGA_COLOR_BARREL: '#aa44dd',
+        MEGA_COLOR_GRIP: '#551177',
+        MEGA_COLOR_DETAIL: '#ff88ff',
+        MEGA_COLOR_MUZZLE: '#ff44ff',
     },
 };
 
@@ -165,6 +208,26 @@ SpaceBoy.SUPER_BULLET = {
     MAX_LIFETIME: 3,           // lasts longer
     KILLS_TO_CHARGE: 5,        // kills needed per super bullet
     FIRE_RATE: 0.3,            // cooldown between super shots
+};
+
+// Mega bullet — unlocked on level 2+, charged by collecting gems
+SpaceBoy.MEGA_BULLET = {
+    SPEED: 300,                // half of normal BULLET.SPEED (600)
+    RADIUS: 15,                // 5x BULLET.RADIUS (3)
+    COLOR: '#ff44ff',          // magenta
+    GLOW_COLOR: 'rgba(255,68,255,0.55)',
+    CORE_COLOR: '#ffffff',     // white hot core
+    DAMAGE: 20,                // monster damage
+    MAX_LIFETIME: 3,
+    GEMS_PER_BULLET: 10,       // collect N gems → earn 1 mega bullet
+    FIRE_RATE: 0.35,
+};
+
+// Weapon catalog — LMB fire modes. Each weapon is one of these IDs.
+// Per-level weapon loadouts live in SpaceBoy.LEVELS.
+SpaceBoy.WEAPONS = {
+    NORMAL: 'normal',
+    MEGA: 'mega',
 };
 
 // Enemies — shared visual config
@@ -241,12 +304,144 @@ SpaceBoy.ENEMY_TYPES = {
         COLOR_DARK: '#6b2491',
         COLOR_GLOW: 'rgba(153,51,204,0.4)',
     },
+
+    // --- Level 2 enemies ---
+
+    // Kamikaze flying dasher — 1 HP, spots the player and dives at them
+    dasher: {
+        WIDTH: 28,
+        HEIGHT: 22,
+        HEALTH: 1,
+        SCORE: 25,
+        PATROL_SPEED: 60,
+        DASH_SPEED: 380,        // very fast — act quickly!
+        SIGHT_RANGE: 320,
+        COLOR: '#ff2288',       // hot pink
+        COLOR_DARK: '#aa0055',
+        COLOR_GLOW: 'rgba(255,34,136,0.55)',
+    },
+
+    // Alien Frogger — 3 HP, hops like a frog and spits acid in an arc
+    frogger: {
+        WIDTH: 36,
+        HEIGHT: 34,
+        HEALTH: 3,
+        SCORE: 40,
+        HOP_INTERVAL_MIN: 1.6,  // seconds between hops
+        HOP_INTERVAL_MAX: 2.6,
+        HOP_SPEED_X: 80,        // horizontal hop velocity (px/sec)
+        HOP_SPEED_Y: -380,      // initial upward hop velocity (px/sec)
+        SHOOT_INTERVAL_MIN: 2.2,
+        SHOOT_INTERVAL_MAX: 3.4,
+        ACID_SPEED_X: 140,      // acid initial horizontal velocity
+        ACID_SPEED_Y: -280,     // acid initial upward velocity (parabola peak)
+        ACID_RADIUS: 5,
+        ACID_DAMAGE: 1,
+        ACID_LIFETIME: 3.5,
+        ACID_COLOR: '#99ff22',
+        ACID_GLOW: 'rgba(153,255,34,0.55)',
+        SIGHT_RANGE: 400,
+        COLOR: '#22cc55',       // swampy green
+        COLOR_DARK: '#0f7730',
+        COLOR_GLOW: 'rgba(34,204,85,0.5)',
+        BELLY_COLOR: '#ccff88',
+        EYE_COLOR: '#ffeb44',
+    },
 };
 
 // Backwards-compat aliases (used by spawner.js and others)
 SpaceBoy.WALKER = SpaceBoy.ENEMY_TYPES.walker;
 SpaceBoy.CHARGER = SpaceBoy.ENEMY_TYPES.charger;
 SpaceBoy.FLYER = SpaceBoy.ENEMY_TYPES.flyer;
+
+// =============================================================================
+// LEVELS — per-level configuration. Adding a new level = adding an entry.
+// Includes weapon loadout, screen count, acid plant count, enemy spawn mix,
+// boss type, intro story, and winning copy.
+// =============================================================================
+SpaceBoy.LEVELS = {
+    1: {
+        NUMBER: 1,
+        TITLE: 'Level 1 — The Alien Jungle',
+        SCREENS: 5,
+        PLAY_SCREENS: 4,
+        DATA_KEY: 'level1Data',
+        WEAPONS: ['normal'],            // LMB weapons available (besides super)
+        ACID_PLANTS: 3,
+        BOSS_TYPE: 'alien_saucer',
+        INTRO_STORY:
+            "The galaxy is in shambles. Evil alien overlords have invaded " +
+            "the jungle moon of Zarvox-7 and they're throwing the worst " +
+            "house parties imaginable. You, yes you Space Boy!, have been " +
+            "tasked with saving the universe and turning down the music. " +
+            "Permanently.",
+        WIN_MESSAGE: "Continue Space Boy!'s journey through space and time.",
+        SPAWN: {
+            PLATFORM_ENEMY_CHANCE: 0.24,
+            PLATFORM_TYPES: ['walker', 'charger'],
+            PLATFORM_CHARGER_RATIO: 0.3,
+            GROUND: [{ type: 'charger', count: 12 }, { type: 'walker', count: 12 }],
+            AIR: [{ type: 'flyer', count: 18, minRow: 2, maxRow: 11 }],
+            SAFE_COLS: 6,
+        },
+    },
+    2: {
+        NUMBER: 2,
+        TITLE: 'Level 2 — The Return',
+        SCREENS: 9,                     // 8 play screens + 1 boss arena
+        PLAY_SCREENS: 8,                // boss arena occupies the 9th screen
+        DATA_KEY: 'level2Data',
+        WEAPONS: ['normal', 'mega'],    // mouse wheel switches between these
+        ACID_PLANTS: 5,
+        BOSS_TYPE: 'emo_saucer',        // Greyus Prime Plus, the emo son
+        INTRO_STORY:
+            "50 years ago you defeated Greyus Prime. Now his son, the " +
+            "superbly named Greyus Prime Plus, is out to avenge his " +
+            "father. Intel suggests he is emo. " +
+            "It is up to you to save the universe again!",
+        WIN_MESSAGE: "Greyus Prime Plus has been defeated. The galaxy can finally take its eyeliner off.",
+        SPAWN: {
+            PLATFORM_ENEMY_CHANCE: 0.375, // 25% denser than the previous 0.30
+            PLATFORM_TYPES: ['walker', 'charger', 'frogger'],
+            PLATFORM_CHARGER_RATIO: 0.35,
+            PLATFORM_FROGGER_RATIO: 0.25,
+            GROUND: [
+                { type: 'charger', count: 13 }, // +25%
+                { type: 'walker',  count: 10 }, // +25%
+                { type: 'frogger', count: 18 }, // +6 froggers, then +25%
+            ],
+            AIR: [
+                { type: 'flyer',  count: 18, minRow: 2, maxRow: 11 }, // +25%
+                { type: 'dasher', count: 20, minRow: 2, maxRow: 9 },  // +25%
+            ],
+            SAFE_COLS: 6,
+        },
+    },
+    3: {
+        NUMBER: 3,
+        TITLE: 'Level 3 — ???',
+        SCREENS: 0,
+        PLAY_SCREENS: 0,
+        DATA_KEY: null,
+        WEAPONS: [],
+        ACID_PLANTS: 0,
+        BOSS_TYPE: null,
+        INTRO_STORY: null,
+        WIN_MESSAGE: null,
+        COMING_SOON: true,
+        COMING_SOON_MESSAGE: "Space Boy! is sleeping, come back later.",
+        SPAWN: null,
+    },
+};
+
+// --- Enemy "family" classification (used for drip colors, rendering hints) ---
+SpaceBoy.ENEMY_FAMILY = {
+    walker: 'ground',
+    charger: 'ground',
+    flyer:   'air',
+    dasher:  'air',
+    frogger: 'ground',
+};
 
 // Space background (adapts to level size)
 SpaceBoy.BACKGROUND = {
@@ -352,6 +547,64 @@ SpaceBoy.BOSS_TYPES = {
         COLOR_ALIEN_EYE: '#0a0a10',         // big black eyes
         COLOR_ALIEN_EYE_HL: '#ffffff',
         COLOR_DOME_GLOW: 'rgba(180,220,255,0.35)',
+    },
+
+    // Level 2 — Greyus Prime Plus, the emo son. Same chassis as his father
+    // but with stereotypical "the world doesn't get me" styling: black hair
+    // hanging in his face, smudged black eyeliner, and a black saucer with
+    // hot-pink accents.
+    emo_saucer: {
+        NAME: 'Greyus Prime Plus',
+        WIDTH: 110,                         // slightly larger than dad
+        HEIGHT: 195,
+        HEALTH: 45,                         // tougher than dad
+        SCORE: 800,
+        CONTACT_DAMAGE: 1,
+
+        // Movement — a bit more aggressive than dad. Same wiggle pattern.
+        MOVE_SPEED: 130,
+        CHARGE_SPEED: 300,
+        WIGGLE_AMP_X: 100,
+        WIGGLE_AMP_Y: 60,
+        WIGGLE_FREQ_X: 0.9,
+        WIGGLE_FREQ_Y: 1.4,
+        HOVER_Y_MIN: 60,
+        HOVER_Y_MAX: 230,
+
+        MIN_DISTANCE_FROM_PLAYER: 240,
+        CHARGE_INTERVAL_MIN: 4,
+        CHARGE_INTERVAL_MAX: 7,
+        CHARGE_DURATION: 1.2,
+
+        SHOOT_PAUSE_MIN: 1.4,
+        SHOOT_PAUSE_MAX: 2.8,
+        SHOOT_BURST_MIN: 3,
+        SHOOT_BURST_MAX: 6,
+        SHOOT_BURST_INTERVAL: 0.2,
+        SHOOT_SPREAD: 0.25,
+        BULLET_SPEED: 320,
+        BULLET_RADIUS: 6,
+        BULLET_LIFE: 4,
+        BULLET_DAMAGE: 1,
+        BULLET_COLOR: '#ff44aa',            // hot pink bullets
+        BULLET_GLOW: 'rgba(255,68,170,0.55)',
+
+        // Visual — pink-and-black saucer, emo alien inside
+        COLOR_SAUCER_TOP: '#3a2030',        // dark plum dome metal
+        COLOR_SAUCER_BODY: '#1a1020',       // near-black body
+        COLOR_SAUCER_DARK: '#08040c',       // shadow / underbelly
+        COLOR_SAUCER_RIM: '#ff44aa',        // hot pink rim
+        COLOR_SAUCER_LIGHT: '#ff88cc',      // pink running lights
+        COLOR_ALIEN_SKIN: '#c8c8b8',        // a touch paler than dad — never goes outside
+        COLOR_ALIEN_SKIN_DARK: '#7a7a6a',
+        COLOR_ALIEN_EYE: '#0a0a10',
+        COLOR_ALIEN_EYE_HL: '#ffffff',
+        COLOR_DOME_GLOW: 'rgba(255,90,180,0.35)',
+
+        // Emo-specific styling
+        COLOR_HAIR: '#0a0a0e',              // jet black emo hair
+        COLOR_HAIR_HL: '#332244',           // subtle purple sheen highlight
+        COLOR_EYELINER: '#000000',          // smudged black eyeliner
     },
 };
 

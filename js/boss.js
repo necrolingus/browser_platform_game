@@ -538,6 +538,117 @@
         ctx.restore();
     };
 
+    // --- Level 2: Greyus Prime Plus, emo edition ---
+    // Reuses the alien_saucer drawer for the chassis (already pulls black +
+    // pink colors from cfg) and overlays a black emo hairdo + eyeliner.
+    SpaceBoy.BossRenderers.emo_saucer = function (ctx, boss, camera) {
+        // Draw the base saucer + alien using the existing renderer.
+        SpaceBoy.BossRenderers.alien_saucer(ctx, boss, camera);
+
+        var cfg = boss.cfg;
+        var sx = boss.x - camera.x;
+        var sy = boss.y - camera.y;
+        var w = boss.width;
+        var h = boss.height;
+        var cx = sx + w / 2;
+        var bob = Math.sin(boss._t * 3) * 3;
+
+        ctx.save();
+        ctx.translate(0, bob);
+
+        // Recompute the same head metrics the base renderer used so the
+        // overlays line up exactly.
+        var domeCy = sy + h * 0.44;
+        var domeRx = w * 0.32;
+        var domeRy = h * 0.24;
+        var headCy = domeCy + domeRy * 0.1;
+        var headRx = domeRx * 0.72;
+        var headRy = domeRy * 0.85;
+
+        // ---- Eyeliner: smudged black ring around each almond eye ----
+        var eyeRx = headRx * 0.35;
+        var eyeRy = headRy * 0.45;
+        var eyeSpacing = headRx * 0.42;
+        var eyeY = headCy - headRy * 0.05;
+
+        function drawEyeliner(sign) {
+            ctx.save();
+            ctx.translate(cx + sign * eyeSpacing, eyeY);
+            ctx.rotate(sign * 0.35);
+            // Outer smudge
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, eyeRx * 1.45, eyeRy * 1.35, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Hard liner ring
+            ctx.strokeStyle = cfg.COLOR_EYELINER;
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, eyeRx * 1.18, eyeRy * 1.12, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            // Tear-drop drip below the outer corner
+            ctx.fillStyle = cfg.COLOR_EYELINER;
+            ctx.beginPath();
+            ctx.moveTo(eyeRx * 0.6, eyeRy * 0.9);
+            ctx.quadraticCurveTo(eyeRx * 0.95, eyeRy * 1.6, eyeRx * 0.45, eyeRy * 1.7);
+            ctx.quadraticCurveTo(eyeRx * 0.55, eyeRy * 1.3, eyeRx * 0.6, eyeRy * 0.9);
+            ctx.fill();
+            ctx.restore();
+        }
+        drawEyeliner(-1);
+        drawEyeliner(1);
+
+        // ---- Black emo hair: side-swept fringe hanging in his face ----
+        // Drawn as a chunky asymmetric shape covering the upper half of the
+        // forehead and sweeping down past one eye.
+        ctx.fillStyle = cfg.COLOR_HAIR;
+
+        // Skull cap across the top of the head (slightly past the temples)
+        ctx.beginPath();
+        ctx.moveTo(cx - headRx * 1.05, headCy - headRy * 0.55);
+        ctx.bezierCurveTo(
+            cx - headRx * 1.15, headCy - headRy * 1.15,
+            cx + headRx * 1.15, headCy - headRy * 1.2,
+            cx + headRx * 1.05, headCy - headRy * 0.4
+        );
+        // Sweep down to the left across the forehead
+        ctx.bezierCurveTo(
+            cx + headRx * 0.55, headCy - headRy * 0.05,
+            cx - headRx * 0.2,  headCy + headRy * 0.05,
+            cx - headRx * 0.85, headCy - headRy * 0.15
+        );
+        // Long jagged fringe pointing toward the chin
+        ctx.lineTo(cx - headRx * 0.55, headCy + headRy * 0.55);
+        ctx.lineTo(cx - headRx * 0.95, headCy + headRy * 0.25);
+        ctx.lineTo(cx - headRx * 1.15, headCy + headRy * 0.7);
+        ctx.lineTo(cx - headRx * 1.25, headCy - headRy * 0.05);
+        ctx.closePath();
+        ctx.fill();
+
+        // Subtle purple sheen highlight along the top of the hair
+        ctx.strokeStyle = cfg.COLOR_HAIR_HL;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - headRx * 0.9, headCy - headRy * 0.85);
+        ctx.bezierCurveTo(
+            cx - headRx * 0.4, headCy - headRy * 1.05,
+            cx + headRx * 0.5, headCy - headRy * 1.05,
+            cx + headRx * 0.95, headCy - headRy * 0.7
+        );
+        ctx.stroke();
+
+        // Long thin emo bang strand dangling between the eyes
+        ctx.strokeStyle = cfg.COLOR_HAIR;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(cx - headRx * 0.05, headCy - headRy * 0.55);
+        ctx.quadraticCurveTo(cx - headRx * 0.4, headCy + headRy * 0.1, cx - headRx * 0.15, headCy + headRy * 0.65);
+        ctx.stroke();
+
+        ctx.restore();
+    };
+
     // =========================================================================
     // Arena helper — computes the boss arena bounds for a given level.
     // Returns a rect in world coordinates.

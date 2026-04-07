@@ -25,6 +25,10 @@
             this.rmbPressed = false;
             this.spacePressed = false;
 
+            // Mouse wheel: +1 for wheel-down, -1 for wheel-up (single-tick per frame)
+            this.wheelDelta = 0;
+            this._wheelAccumulated = 0;
+
             this._lmbJustPressed = false;
             this._rmbJustPressed = false;
             this._spaceJustPressed = false;
@@ -78,6 +82,13 @@
             });
 
             canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+            // Mouse wheel — used to cycle weapons. Accumulate deltaY between
+            // frames; update() emits a single -1/0/+1 tick per frame.
+            canvas.addEventListener('wheel', function (e) {
+                self._wheelAccumulated += e.deltaY;
+                e.preventDefault();
+            }, { passive: false });
         }
 
         update() {
@@ -87,6 +98,17 @@
             this._lmbJustPressed = false;
             this._rmbJustPressed = false;
             this._spaceJustPressed = false;
+
+            // Convert accumulated wheel delta to discrete -1/0/+1 per frame
+            if (this._wheelAccumulated > 5) {
+                this.wheelDelta = 1;
+                this._wheelAccumulated = 0;
+            } else if (this._wheelAccumulated < -5) {
+                this.wheelDelta = -1;
+                this._wheelAccumulated = 0;
+            } else {
+                this.wheelDelta = 0;
+            }
         }
 
         isKeyDown(key) {

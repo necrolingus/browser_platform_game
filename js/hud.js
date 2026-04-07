@@ -9,6 +9,8 @@
     var PLAYER = SpaceBoy.PLAYER;
     var GEM = SpaceBoy.GEM;
     var SUPER = SpaceBoy.SUPER_BULLET;
+    var MEGA = SpaceBoy.MEGA_BULLET;
+    var WEAPONS = SpaceBoy.WEAPONS;
     var TYPES = SpaceBoy.ENEMY_TYPES;
 
     function drawHeart(ctx, x, y, size) {
@@ -78,6 +80,43 @@
                     ctx.arc(ix, iconY, HUD.SUPER_ICON_SIZE, 0, Math.PI * 2);
                     ctx.fill();
                 }
+            }
+
+            // --- Mega bullet count (icons above super bullet row) ---
+            if (player.megaBullets > 0) {
+                var megaY = py + HUD.SUPER_ICON_OFFSET_Y - 12;
+                var totalMegaW = player.megaBullets * (HUD.SUPER_ICON_SPACING + 2);
+                var megaStartX = centerX - totalMegaW / 2 + (HUD.SUPER_ICON_SPACING + 2) / 2;
+
+                for (var i = 0; i < player.megaBullets; i++) {
+                    var ix = megaStartX + i * (HUD.SUPER_ICON_SPACING + 2);
+                    // Magenta glow orb
+                    ctx.fillStyle = MEGA.GLOW_COLOR;
+                    ctx.beginPath();
+                    ctx.arc(ix, megaY, HUD.SUPER_ICON_SIZE * 1.8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = MEGA.COLOR;
+                    ctx.beginPath();
+                    ctx.arc(ix, megaY, HUD.SUPER_ICON_SIZE * 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                    // White hot core
+                    ctx.fillStyle = MEGA.CORE_COLOR;
+                    ctx.beginPath();
+                    ctx.arc(ix, megaY, HUD.SUPER_ICON_SIZE * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // --- Current weapon indicator (only if player has >1 weapon) ---
+            if (player.availableWeapons && player.availableWeapons.length > 1) {
+                var labelY = py + HUD.SUPER_ICON_OFFSET_Y - 26;
+                var label = player.currentWeapon === WEAPONS.MEGA ? 'MEGA' : 'NORMAL';
+                var color = player.currentWeapon === WEAPONS.MEGA ? MEGA.COLOR : '#ffcc00';
+                ctx.font = HUD.FONT_SMALL;
+                ctx.textAlign = 'center';
+                ctx.fillStyle = color;
+                ctx.fillText(label, centerX, labelY);
+                ctx.textAlign = 'start';
             }
         }
 

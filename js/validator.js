@@ -205,7 +205,8 @@
         var tiles = data.tiles;
         for (var i = 0; i < data.enemies.length; i++) {
             var e = data.enemies[i];
-            if (e.type === 'flyer') continue;
+            // Skip flying enemies — they don't need ground below them
+            if (e.type === 'flyer' || e.type === 'dasher') continue;
             var below = e.row + 1;
             if (!isSolid(tiles, e.col, below)) {
                 var origRow = e.row;

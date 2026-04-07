@@ -4,12 +4,16 @@
 // =============================================================================
 
 (function () {
+    var GAME = SpaceBoy.GAME;
     var PLAYER = SpaceBoy.PLAYER;
     var PHYSICS = SpaceBoy.PHYSICS;
     var BULLET = SpaceBoy.BULLET;
     var SUPER = SpaceBoy.SUPER_BULLET;
+    var MEGA = SpaceBoy.MEGA_BULLET;
+    var WEAPONS = SpaceBoy.WEAPONS;
     var BLOB = PLAYER.BLOB;
     var GUN = PLAYER.GUN;
+    var HAIR = PLAYER.HAIR;
 
     class Player {
         constructor(x, y) {
@@ -36,6 +40,15 @@
             this.killCharge = 0;        // kills toward next super bullet (0 to KILLS_TO_CHARGE)
             this.superBullets = 0;      // available super bullets
             this.superFireCooldown = 0;
+
+            // Weapon loadout (set per-level via setWeapons). Default = normal only.
+            this.availableWeapons = [WEAPONS.NORMAL];
+            this.currentWeapon = WEAPONS.NORMAL;
+
+            // Mega bullet state — ammo is earned by collecting gems.
+            this.megaBullets = 0;
+            this.gemCharge = 0;         // gems toward next mega bullet
+            this.megaFireCooldown = 0;
 
             // Visual-only animation state (never affects physics)
             this.blobTime = 0;
@@ -89,22 +102,50 @@
             var centerY = this.y + this.height / 2 - camera.y;
             this.gunAngle = Math.atan2(input.mouseY - centerY, input.mouseX - centerX);
 
-            // --- Shooting (LMB) — normal bullets ---
+            // --- Weapon switching (mouse wheel) ---
+            if (input.wheelDelta !== 0 && this.availableWeapons.length > 1) {
+                this.cycleWeapon(input.wheelDelta);
+            }
+
+            // --- Shooting (LMB) — fires the currently selected weapon ---
             this.fireCooldown -= dt;
-            if (input.lmbDown && this.fireCooldown <= 0) {
-                this.fireCooldown = BULLET.FIRE_RATE;
-                this.muzzleFlash = GUN.MUZZLE_FLASH_TIME;
-                var bx = this.x + this.width / 2 + Math.cos(this.gunAngle) * PLAYER.GUN_LENGTH;
-                var by = this.y + this.height / 2 + Math.sin(this.gunAngle) * PLAYER.GUN_LENGTH;
-                bullets.push({
-                    x: bx,
-                    y: by,
-                    vx: Math.cos(this.gunAngle) * BULLET.SPEED,
-                    vy: Math.sin(this.gunAngle) * BULLET.SPEED,
-                    life: BULLET.MAX_LIFETIME,
-                    damage: BULLET.DAMAGE,
-                    isSuper: false,
-                });
+            this.megaFireCooldown -= dt;
+            if (input.lmbDown) {
+                if (this.currentWeapon === WEAPONS.MEGA) {
+                    if (this.megaFireCooldown <= 0 && this.megaBullets > 0) {
+                        this.megaBullets--;
+                        this.megaFireCooldown = MEGA.FIRE_RATE;
+                        this.fireCooldown = BULLET.FIRE_RATE;    // shared cooldown feel
+                        this.muzzleFlash = GUN.MUZZLE_FLASH_TIME * 2;
+                        var mbx = this.x + this.width / 2 + Math.cos(this.gunAngle) * PLAYER.GUN_LENGTH;
+                        var mby = this.y + this.height / 2 + Math.sin(this.gunAngle) * PLAYER.GUN_LENGTH;
+                        bullets.push({
+                            x: mbx,
+                            y: mby,
+                            vx: Math.cos(this.gunAngle) * MEGA.SPEED,
+                            vy: Math.sin(this.gunAngle) * MEGA.SPEED,
+                            life: MEGA.MAX_LIFETIME,
+                            damage: MEGA.DAMAGE,
+                            isSuper: false,
+                            isMega: true,
+                        });
+                    }
+                } else if (this.fireCooldown <= 0) {
+                    this.fireCooldown = BULLET.FIRE_RATE;
+                    this.muzzleFlash = GUN.MUZZLE_FLASH_TIME;
+                    var bx = this.x + this.width / 2 + Math.cos(this.gunAngle) * PLAYER.GUN_LENGTH;
+                    var by = this.y + this.height / 2 + Math.sin(this.gunAngle) * PLAYER.GUN_LENGTH;
+                    bullets.push({
+                        x: bx,
+                        y: by,
+                        vx: Math.cos(this.gunAngle) * BULLET.SPEED,
+                        vy: Math.sin(this.gunAngle) * BULLET.SPEED,
+                        life: BULLET.MAX_LIFETIME,
+                        damage: BULLET.DAMAGE,
+                        isSuper: false,
+                        isMega: false,
+                    });
+                }
             }
 
             // --- Super bullet (Spacebar) ---
@@ -130,6 +171,7 @@
         }
 
         takeDamage() {
+            if (GAME.GOD_MODE) return;
             if (this.invTimer > 0) return;
             this.health--;
             if (this.health <= 0) {
@@ -140,6 +182,7 @@
         }
 
         kill() {
+            if (GAME.GOD_MODE) return;
             this.health = 0;
             this.alive = false;
         }
@@ -150,6 +193,38 @@
                 this.killCharge = 0;
                 this.superBullets++;
             }
+        }
+
+        // Called when the player picks up a gem. Every MEGA.GEMS_PER_BULLET
+        // gems collected awards one mega bullet.
+        addGem() {
+            this.gemCharge++;
+            if (this.gemCharge >= MEGA.GEMS_PER_BULLET) {
+                this.gemCharge = 0;
+                this.megaBullets++;
+            }
+        }
+
+        // Apply a level's weapon loadout. Defaults the selection to the first
+        // weapon in the list so levels always start with a known weapon.
+        setWeapons(weaponList) {
+            if (!weaponList || weaponList.length === 0) {
+                this.availableWeapons = [WEAPONS.NORMAL];
+            } else {
+                this.availableWeapons = weaponList.slice();
+            }
+            this.currentWeapon = this.availableWeapons[0];
+        }
+
+        // Cycle through available weapons. Direction: +1 = forward, -1 = back.
+        // Player can switch to any weapon even when they have no ammo for it.
+        cycleWeapon(direction) {
+            var list = this.availableWeapons;
+            if (list.length <= 1) return;
+            var idx = list.indexOf(this.currentWeapon);
+            if (idx < 0) idx = 0;
+            idx = (idx + direction + list.length) % list.length;
+            this.currentWeapon = list[idx];
         }
 
         reset() {
@@ -166,6 +241,10 @@
             this.killCharge = 0;
             this.superBullets = 0;
             this.superFireCooldown = 0;
+            this.megaBullets = 0;
+            this.gemCharge = 0;
+            this.megaFireCooldown = 0;
+            this.currentWeapon = this.availableWeapons[0] || WEAPONS.NORMAL;
             this.blobTime = 0;
             this.muzzleFlash = 0;
         }
@@ -204,12 +283,121 @@
             // Shift blob down so feet stay at bottom of hitbox
             var blobCY = sy + this.height - ry;
 
-            // --- Draw order: back arm → blob body → gun arm → gun → eyes ---
+            // --- Draw order: back hair → back arm → blob body → fringe → gun arm → gun → eyes ---
+            this._drawBackHair(ctx, cx, blobCY, rx, ry);
             this._drawArm(ctx, cx, blobCY, false);   // back arm (no gun)
             this._drawBlob(ctx, cx, blobCY, rx, ry);
+            this._drawFringe(ctx, cx, blobCY, rx, ry);
             this._drawArm(ctx, cx, blobCY, true);    // gun arm
             this._drawGun(ctx, cx, blobCY);
             this._drawEyes(ctx, cx, blobCY);
+        }
+
+        // Long flowy white hair behind the head — drawn first so the body
+        // sits on top of the strand bases. Strands wave gently using blobTime.
+        _drawBackHair(ctx, cx, cy, rx, ry) {
+            var t = this.blobTime;
+            var topY = cy - ry * 0.85;          // start strands near the crown
+            var spread = rx * 1.55;             // how wide the back hair fans out
+            var n = HAIR.BACK_STRANDS;
+
+            ctx.save();
+            ctx.lineCap = 'round';
+
+            // Big soft ponytail-like backdrop blob behind the head so the
+            // individual strands have something to sit against.
+            ctx.fillStyle = HAIR.COLOR_DARK;
+            ctx.beginPath();
+            ctx.ellipse(cx, topY + ry * 0.55, rx * 1.25, ry * 1.05, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            for (var i = 0; i < n; i++) {
+                var frac = (i / (n - 1)) - 0.5;     // -0.5 .. +0.5
+                var startX = cx + frac * spread * 0.75;
+                var startY = topY + Math.abs(frac) * ry * 0.4;
+
+                // Strands sweep down behind the body and trail off below
+                var lengthScale = 0.85 + Math.cos(frac * Math.PI) * 0.25;
+                var len = HAIR.BACK_LENGTH * lengthScale;
+                var sway = Math.sin(t * HAIR.FLOW_SPEED + i * 0.9) * HAIR.FLOW_AMP;
+
+                var endX = cx + frac * spread + sway;
+                var endY = startY + len;
+                var ctrl1X = startX + sway * 0.3;
+                var ctrl1Y = startY + len * 0.4;
+                var ctrl2X = endX - sway * 0.4;
+                var ctrl2Y = startY + len * 0.75;
+
+                // Outer dark stroke
+                ctx.strokeStyle = HAIR.COLOR_DARK;
+                ctx.lineWidth = HAIR.BACK_WIDTH + 1.5;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.bezierCurveTo(ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, endX, endY);
+                ctx.stroke();
+
+                // Main white strand
+                ctx.strokeStyle = HAIR.COLOR;
+                ctx.lineWidth = HAIR.BACK_WIDTH;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.bezierCurveTo(ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, endX, endY);
+                ctx.stroke();
+
+                // Bright highlight strand for a couple of strands
+                if (i % 2 === 0) {
+                    ctx.strokeStyle = HAIR.COLOR_HIGHLIGHT;
+                    ctx.lineWidth = HAIR.BACK_WIDTH * 0.45;
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.bezierCurveTo(ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, endX, endY);
+                    ctx.stroke();
+                }
+            }
+
+            ctx.restore();
+        }
+
+        // Forehead fringe — drawn after the body so it sits on top of the
+        // head, but before the eyes so the eyes still peek through.
+        _drawFringe(ctx, cx, cy, rx, ry) {
+            var t = this.blobTime;
+            var n = HAIR.FRINGE_STRANDS;
+            var topY = cy - ry * 0.8;
+
+            ctx.save();
+            ctx.lineCap = 'round';
+
+            // Soft cap that hides the very top of the blob
+            ctx.fillStyle = HAIR.COLOR;
+            ctx.beginPath();
+            ctx.ellipse(cx, topY + ry * 0.1, rx * 0.95, ry * 0.4, 0, Math.PI, Math.PI * 2);
+            ctx.fill();
+
+            for (var i = 0; i < n; i++) {
+                var frac = (i / (n - 1)) - 0.5;
+                var startX = cx + frac * rx * 1.4;
+                var startY = topY + Math.abs(frac) * ry * 0.18;
+                var sway = Math.sin(t * HAIR.FLOW_SPEED + i * 1.3) * HAIR.FLOW_AMP * 0.6;
+                var endX = startX + frac * 4 + sway;
+                var endY = startY + HAIR.FRINGE_LENGTH;
+
+                ctx.strokeStyle = HAIR.COLOR_DARK;
+                ctx.lineWidth = HAIR.FRINGE_WIDTH + 1;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.quadraticCurveTo(startX + sway, startY + HAIR.FRINGE_LENGTH * 0.6, endX, endY);
+                ctx.stroke();
+
+                ctx.strokeStyle = HAIR.COLOR;
+                ctx.lineWidth = HAIR.FRINGE_WIDTH;
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.quadraticCurveTo(startX + sway, startY + HAIR.FRINGE_LENGTH * 0.6, endX, endY);
+                ctx.stroke();
+            }
+
+            ctx.restore();
         }
 
         _drawBlob(ctx, cx, cy, rx, ry) {
@@ -364,26 +552,35 @@
                 ctx.scale(1, -1);
             }
 
+            // Pick palette based on currently-selected weapon so the mega
+            // gun is visibly purple while the normal gun stays grey.
+            var isMega = this.currentWeapon === WEAPONS.MEGA;
+            var bodyColor   = isMega ? GUN.MEGA_COLOR_BODY   : GUN.COLOR_BODY;
+            var barrelColor = isMega ? GUN.MEGA_COLOR_BARREL : GUN.COLOR_BARREL;
+            var detailColor = isMega ? GUN.MEGA_COLOR_DETAIL : GUN.COLOR_DETAIL;
+            var gripColor   = isMega ? GUN.MEGA_COLOR_GRIP   : GUN.COLOR_GRIP;
+            var muzzleColor = isMega ? GUN.MEGA_COLOR_MUZZLE : GUN.COLOR_MUZZLE;
+
             // Gun body (comically large rectangle)
-            ctx.fillStyle = GUN.COLOR_BODY;
+            ctx.fillStyle = bodyColor;
             ctx.fillRect(0, -GUN.BODY_WIDTH / 2, GUN.BODY_LENGTH, GUN.BODY_WIDTH);
 
             // Barrel (extends past body)
-            ctx.fillStyle = GUN.COLOR_BARREL;
+            ctx.fillStyle = barrelColor;
             ctx.fillRect(GUN.BODY_LENGTH, -GUN.BARREL_WIDTH / 2, GUN.BARREL_LENGTH, GUN.BARREL_WIDTH);
 
             // Detail line on body
-            ctx.fillStyle = GUN.COLOR_DETAIL;
+            ctx.fillStyle = detailColor;
             ctx.fillRect(4, -GUN.BODY_WIDTH / 2 + 1, GUN.BODY_LENGTH - 8, 2);
 
             // Grip (hangs below)
-            ctx.fillStyle = GUN.COLOR_GRIP;
+            ctx.fillStyle = gripColor;
             ctx.fillRect(4, GUN.BODY_WIDTH / 2 - 1, GUN.GRIP_WIDTH, GUN.GRIP_LENGTH);
 
             // Muzzle flash
             if (this.muzzleFlash > 0) {
                 var muzzleX = GUN.BODY_LENGTH + GUN.BARREL_LENGTH;
-                ctx.fillStyle = GUN.COLOR_MUZZLE;
+                ctx.fillStyle = muzzleColor;
                 ctx.globalAlpha = this.muzzleFlash / GUN.MUZZLE_FLASH_TIME;
                 ctx.beginPath();
                 ctx.arc(muzzleX + 4, 0, 6, 0, Math.PI * 2);
