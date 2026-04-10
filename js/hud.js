@@ -6,6 +6,7 @@
 
 (function () {
     var HUD = SpaceBoy.HUD;
+    var GAME = SpaceBoy.GAME;
     var PLAYER = SpaceBoy.PLAYER;
     var GEM = SpaceBoy.GEM;
     var SUPER = SpaceBoy.SUPER_BULLET;
@@ -22,7 +23,15 @@
         ctx.fill();
     }
 
-    function drawHUD(ctx, player, camera, score, gemsCollected, killTracker) {
+    // --- Main Menu button bounds (cached for hit-testing) ---
+    var menuBtnRect = {
+        x: GAME.CANVAS_WIDTH - HUD.MENU_BTN_WIDTH - HUD.MENU_BTN_MARGIN,
+        y: HUD.MENU_BTN_MARGIN,
+        w: HUD.MENU_BTN_WIDTH,
+        h: HUD.MENU_BTN_HEIGHT,
+    };
+
+    function drawHUD(ctx, player, camera, score, gemsCollected, killTracker, mouseX, mouseY) {
         // =====================================================================
         // Above-player indicators
         // =====================================================================
@@ -164,7 +173,33 @@
                 ky += 16;
             }
         }
+
+        // =====================================================================
+        // Main Menu button (top-right corner)
+        // =====================================================================
+        var bx = menuBtnRect.x;
+        var by = menuBtnRect.y;
+        var bw = menuBtnRect.w;
+        var bh = menuBtnRect.h;
+        var hover = (mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh);
+
+        ctx.fillStyle = hover ? HUD.MENU_BTN_HOVER_BG : HUD.MENU_BTN_BG;
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.strokeStyle = HUD.MENU_BTN_BORDER;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx, by, bw, bh);
+        ctx.font = HUD.MENU_BTN_FONT;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = hover ? HUD.MENU_BTN_HOVER_TEXT : HUD.MENU_BTN_TEXT;
+        ctx.fillText('Menu', bx + bw / 2, by + bh / 2 + 4);
+        ctx.textAlign = 'start';
+    }
+
+    function isMenuButtonHit(canvasX, canvasY) {
+        return canvasX >= menuBtnRect.x && canvasX <= menuBtnRect.x + menuBtnRect.w &&
+               canvasY >= menuBtnRect.y && canvasY <= menuBtnRect.y + menuBtnRect.h;
     }
 
     SpaceBoy.drawHUD = drawHUD;
+    SpaceBoy.isMenuButtonHit = isMenuButtonHit;
 })();

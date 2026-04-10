@@ -463,14 +463,12 @@ SpaceBoy.LEVELS = {
             "Everything feels wrong, like the universe itself is " +
             "in mourning. The 'evil family reunion' is somewhere " +
             "ahead. Time to put an end to this, once and for all.",
-        WIN_MESSAGE: "With the Greyus bloodline silenced forever, Space Boy! set a course for home. " +
-            "The galaxy held a parade that lasted three star-cycles, but all he could think about was Verdana-5, " +
-            "his home planet. When his ship finally touched down, the whole planet was waiting, welcoming him with open arms. " +
-            "He settled down, married his childhood sweetheart, and together they raised five little legends: three Space Boys " +
-            "and two Space Girls, each one inheriting their father's green glow and heart of steel. They grew up to be brave, " +
-            "kind, and always ready to answer the call when the universe needed them. Space Boy! hung up his oversized gun " +
-            "above the fireplace, watched his children chase fireflies across the jade oceans, and for the first time in " +
-            "fifty years, he felt at peace.",
+        WIN_MESSAGE: "With the Greyus bloodline silenced forever, Space Boy! was a hero, and the entire galaxy held a parade " +
+            "that lasted three star-cycles, but all he could think about was Verdana-5, his home planet. When his ship finally " +
+            "touched down, the whole planet was waiting, and he married his childhood sweetheart. They bolted a second gun turret " +
+            "onto his ship and launched into the endless black, two hearts beating against the silence of space. Some nights, " +
+            "passing freighters spot the stark green glow of engine trails and mega bullets streaking across the void and smile, " +
+            "because as long as those colours light up the darkness of space, the universe is safe.",
 
         // --- Monochrome terrain override (negative-photograph look) ---
         // Merged onto SpaceBoy.TERRAIN when this level loads, then
@@ -691,7 +689,7 @@ SpaceBoy.BOSS_TYPES = {
         // Bounding box encompasses all 3 orbiting saucers
         WIDTH: 280,
         HEIGHT: 280,
-        HEALTH: 90,                         // shared across all 3
+        HEALTH: 180,                        // shared across all 3
         SCORE: 1500,
         CONTACT_DAMAGE: 1,
 
@@ -814,4 +812,15 @@ SpaceBoy.HUD = {
     SUPER_ICON_COLOR: '#00ffff',
     SUPER_ICON_OFFSET_Y: -30, // above charge bar
     SUPER_ICON_SPACING: 10,
+
+    // Main Menu button (top-right corner)
+    MENU_BTN_WIDTH: 80,
+    MENU_BTN_HEIGHT: 26,
+    MENU_BTN_MARGIN: 10,        // from top-right corner
+    MENU_BTN_BG: 'rgba(30,30,50,0.7)',
+    MENU_BTN_BORDER: '#667',
+    MENU_BTN_TEXT: '#88aacc',
+    MENU_BTN_HOVER_BG: 'rgba(50,50,80,0.85)',
+    MENU_BTN_HOVER_TEXT: '#ffffff',
+    MENU_BTN_FONT: '12px monospace',
 };

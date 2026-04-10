@@ -187,6 +187,8 @@
     // --- Input setup (persists across restarts) ---
     input = new Input(canvas);
 
+    // --- Menu button: checked each frame in update() ---
+
     // =========================================================================
     // Screen flow
     // =========================================================================
@@ -336,6 +338,14 @@
     }
 
     function update(dt) {
+        // --- Menu button click (suppress shot + return to start) ---
+        if (input.lmbPressed && SpaceBoy.isMenuButtonHit(input.mouseX, input.mouseY)) {
+            input.lmbPressed = false;
+            input.lmbDown = false;
+            showStartScreen();
+            return;
+        }
+
         // --- Player ---
         player.update(dt, input, camera, bullets);
         moveX(player, dt, level);
@@ -650,7 +660,7 @@
         player.draw(ctx, camera);
 
         // HUD
-        drawHUD(ctx, player, camera, score, gemsCollected, killTracker);
+        drawHUD(ctx, player, camera, score, gemsCollected, killTracker, input.mouseX, input.mouseY);
     }
 
     // Expose kill tracker for external access
