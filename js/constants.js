@@ -134,7 +134,7 @@ SpaceBoy.PLAYER = {
     MAX_JUMPS: 2,              // 1 = normal, 2 = double jump
     LEAP_VELOCITY_X: 120,     // extra horizontal px/sec added when leaping
     AIR_CONTROL: 0.6,          // fraction of ground acceleration available in air
-    MAX_HEALTH: 3,
+    MAX_HEALTH: 4,
     INVINCIBILITY_TIME: 1.5,   // seconds of invincibility after being hit
     GUN_LENGTH: 22,            // visual length of gun line from center
     GUN_COLOR: '#ffcc00',
