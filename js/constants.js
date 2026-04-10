@@ -427,7 +427,7 @@ SpaceBoy.LEVELS = {
         BOSS_TYPE: 'emo_saucer',        // Greyus Prime Plus, the emo son
         INTRO_STORY:
             "50 years ago you defeated Greyus Prime. Now his son, the " +
-            "superbly named Greyus Prime Plus, the evil emo prince, is out to avenge his father." +
+            "superbly named Greyus Prime Plus, the evil emo prince, is out to avenge his father. " +
             "It is up to you, Space Boy!, to put an end to this menace!",
         WIN_MESSAGE: "Greyus Prime Plus, the emo prince, is down, but as you scavenged through the wreckage you find his diary. " +
             "On page 420 line 69 you find the lyrics to an old Bullet for my Valentine song, but it also mentions an 'evil family reunion' in Sector 9. " +
@@ -463,7 +463,14 @@ SpaceBoy.LEVELS = {
             "Everything feels wrong, like the universe itself is " +
             "in mourning. The 'evil family reunion' is somewhere " +
             "ahead. Time to put an end to this, once and for all.",
-        WIN_MESSAGE: "With the Greyus bloodline silenced forever, Space Boy! set a course for home. The galaxy held a parade that lasted three star-cycles, but all he could think about was Verdana-5, his home planet. When his ship finally touched down, the whole planet was waiting, welcoming him with open arms. He settled down, married his childhood sweetheart, and together they raised five little legends: three Space Boys and two Space Girls, each one inheriting their father's green glow and heart of steel. They grew up to be brave, kind, and always ready to answer the call when the universe needed them. Space Boy! hung up his oversized gun above the fireplace, watched his children chase fireflies across the jade oceans, and for the first time in fifty years, he felt at peace.",
+        WIN_MESSAGE: "With the Greyus bloodline silenced forever, Space Boy! set a course for home. " +
+            "The galaxy held a parade that lasted three star-cycles, but all he could think about was Verdana-5, " +
+            "his home planet. When his ship finally touched down, the whole planet was waiting, welcoming him with open arms. " +
+            "He settled down, married his childhood sweetheart, and together they raised five little legends: three Space Boys " +
+            "and two Space Girls, each one inheriting their father's green glow and heart of steel. They grew up to be brave, " +
+            "kind, and always ready to answer the call when the universe needed them. Space Boy! hung up his oversized gun " +
+            "above the fireplace, watched his children chase fireflies across the jade oceans, and for the first time in " +
+            "fifty years, he felt at peace.",
 
         // --- Monochrome terrain override (negative-photograph look) ---
         // Merged onto SpaceBoy.TERRAIN when this level loads, then
