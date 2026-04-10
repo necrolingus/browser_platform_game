@@ -14,7 +14,7 @@ SpaceBoy.GAME = {
 
     // Dev / testing flag — when true, the player ignores all damage so you
     // can sprint through levels to test layouts. Leave false for normal play.
-    GOD_MODE: true,
+    GOD_MODE: false,
 };
 
 // Grid / tile system
@@ -493,18 +493,18 @@ SpaceBoy.LEVELS = {
         },
 
         SPAWN: {
-            PLATFORM_ENEMY_CHANCE: 0.6,     // very high — every ledge is dangerous
+            PLATFORM_ENEMY_CHANCE: 0.75,    // very high — every ledge is dangerous
             PLATFORM_TYPES: ['walker', 'charger', 'frogger'],
             PLATFORM_CHARGER_RATIO: 0.25,
             PLATFORM_FROGGER_RATIO: 0.35,
             GROUND: [
-                { type: 'frogger', count: 25 },   // placed first — needs headroom
-                { type: 'walker', count: 20 },
-                { type: 'charger', count: 20 },
+                { type: 'frogger', count: 38 },   // placed first — needs headroom
+                { type: 'walker', count: 30 },
+                { type: 'charger', count: 30 },
             ],
             AIR: [
-                { type: 'flyer', count: 25, minRow: 2, maxRow: 11 },
-                { type: 'dasher', count: 30, minRow: 2, maxRow: 9 },
+                { type: 'flyer', count: 38, minRow: 2, maxRow: 11 },
+                { type: 'dasher', count: 45, minRow: 2, maxRow: 9 },
             ],
             SAFE_COLS: 4,
         },
