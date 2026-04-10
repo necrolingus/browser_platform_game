@@ -53,6 +53,7 @@
             // Visual-only animation state (never affects physics)
             this.blobTime = 0;
             this.muzzleFlash = 0;
+            this.showHair = false;          // toggled per-level in initLevel
         }
 
         update(dt, input, camera, bullets) {
@@ -284,10 +285,10 @@
             var blobCY = sy + this.height - ry;
 
             // --- Draw order: back hair → back arm → blob body → fringe → gun arm → gun → eyes ---
-            this._drawBackHair(ctx, cx, blobCY, rx, ry);
+            if (this.showHair) this._drawBackHair(ctx, cx, blobCY, rx, ry);
             this._drawArm(ctx, cx, blobCY, false);   // back arm (no gun)
             this._drawBlob(ctx, cx, blobCY, rx, ry);
-            this._drawFringe(ctx, cx, blobCY, rx, ry);
+            if (this.showHair) this._drawFringe(ctx, cx, blobCY, rx, ry);
             this._drawArm(ctx, cx, blobCY, true);    // gun arm
             this._drawGun(ctx, cx, blobCY);
             this._drawEyes(ctx, cx, blobCY);

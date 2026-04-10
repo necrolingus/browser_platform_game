@@ -14,7 +14,7 @@ SpaceBoy.GAME = {
 
     // Dev / testing flag — when true, the player ignores all damage so you
     // can sprint through levels to test layouts. Leave false for normal play.
-    GOD_MODE: false,
+    GOD_MODE: true,
 };
 
 // Grid / tile system
@@ -61,6 +61,39 @@ SpaceBoy.TILE_COLORS = {
     [SpaceBoy.TILES.GROUND]: '#8B6B4A',
     [SpaceBoy.TILES.PLATFORM]: '#8B6B4A',
     [SpaceBoy.TILES.LAVA]: '#ff4500',
+};
+
+// Snapshot of the default terrain palette so per-level overrides can be
+// reverted cleanly when switching back to a normal-looking level.
+SpaceBoy._DEFAULT_TERRAIN = null;  // populated lazily below
+
+// Apply a per-level TERRAIN_OVERRIDE (or restore defaults if null/undefined).
+SpaceBoy.applyTerrainOverride = function (override) {
+    var T = SpaceBoy.TERRAIN;
+    // Lazy snapshot of the factory defaults (first call only)
+    if (!SpaceBoy._DEFAULT_TERRAIN) {
+        SpaceBoy._DEFAULT_TERRAIN = {};
+        for (var k in T) {
+            if (T.hasOwnProperty(k)) {
+                SpaceBoy._DEFAULT_TERRAIN[k] = Array.isArray(T[k]) ? T[k].slice() : T[k];
+            }
+        }
+    }
+    // Restore defaults first
+    var defaults = SpaceBoy._DEFAULT_TERRAIN;
+    for (var k in defaults) {
+        if (defaults.hasOwnProperty(k)) {
+            T[k] = Array.isArray(defaults[k]) ? defaults[k].slice() : defaults[k];
+        }
+    }
+    // Layer on overrides
+    if (override) {
+        for (var k in override) {
+            if (override.hasOwnProperty(k)) {
+                T[k] = Array.isArray(override[k]) ? override[k].slice() : override[k];
+            }
+        }
+    }
 };
 
 // Terrain visual style
@@ -370,12 +403,10 @@ SpaceBoy.LEVELS = {
         ACID_PLANTS: 3,
         BOSS_TYPE: 'alien_saucer',
         INTRO_STORY:
-            "The galaxy is in shambles. Evil alien overlords have invaded " +
-            "the jungle moon of Zarvox-7 and they're throwing the worst " +
-            "house parties imaginable. You, yes you Space Boy!, have been " +
-            "tasked with saving the universe and turning down the music. " +
-            "Permanently.",
-        WIN_MESSAGE: "Continue Space Boy!'s journey through space and time.",
+            "Alien overlords have taken the jungle moon of Zarvox-7. " +
+            "The galaxy is calling for help. You are its only answer. " +
+            "Move fast, Space Boy! The universe is counting on you.",
+        WIN_MESSAGE: "The jungle moon of Zarvox-7 is free. But as silence falls, your scanner picks up a faint transmission from the outer rim: 'Father, come in. Father, do you copy?' The Greyus bloodline lives on.",
         SPAWN: {
             PLATFORM_ENEMY_CHANCE: 0.24,
             PLATFORM_TYPES: ['walker', 'charger'],
@@ -396,10 +427,11 @@ SpaceBoy.LEVELS = {
         BOSS_TYPE: 'emo_saucer',        // Greyus Prime Plus, the emo son
         INTRO_STORY:
             "50 years ago you defeated Greyus Prime. Now his son, the " +
-            "superbly named Greyus Prime Plus, is out to avenge his " +
-            "father. Intel suggests he is emo. " +
-            "It is up to you to save the universe again!",
-        WIN_MESSAGE: "Greyus Prime Plus has been defeated. The galaxy can finally take its eyeliner off.",
+            "superbly named Greyus Prime Plus, the evil emo prince, is out to avenge his father." +
+            "It is up to you, Space Boy!, to put an end to this menace!",
+        WIN_MESSAGE: "Greyus Prime Plus, the emo prince, is down, but as you scavenged through the wreckage you find his diary. " +
+            "On page 420 line 69 you find the lyrics to an old Bullet for my Valentine song, but it also mentions an 'evil family reunion' in Sector 9. " +
+            "That can't be good, you better be heading that way.",
         SPAWN: {
             PLATFORM_ENEMY_CHANCE: 0.375, // 25% denser than the previous 0.30
             PLATFORM_TYPES: ['walker', 'charger', 'frogger'],
@@ -407,11 +439,11 @@ SpaceBoy.LEVELS = {
             PLATFORM_FROGGER_RATIO: 0.25,
             GROUND: [
                 { type: 'charger', count: 13 }, // +25%
-                { type: 'walker',  count: 10 }, // +25%
+                { type: 'walker', count: 10 }, // +25%
                 { type: 'frogger', count: 18 }, // +6 froggers, then +25%
             ],
             AIR: [
-                { type: 'flyer',  count: 18, minRow: 2, maxRow: 11 }, // +25%
+                { type: 'flyer', count: 18, minRow: 2, maxRow: 11 }, // +25%
                 { type: 'dasher', count: 20, minRow: 2, maxRow: 9 },  // +25%
             ],
             SAFE_COLS: 6,
@@ -419,18 +451,56 @@ SpaceBoy.LEVELS = {
     },
     3: {
         NUMBER: 3,
-        TITLE: 'Level 3 — ???',
-        SCREENS: 0,
-        PLAY_SCREENS: 0,
-        DATA_KEY: null,
-        WEAPONS: [],
-        ACID_PLANTS: 0,
-        BOSS_TYPE: null,
-        INTRO_STORY: null,
-        WIN_MESSAGE: null,
-        COMING_SOON: true,
-        COMING_SOON_MESSAGE: "Space Boy! is sleeping, come back later.",
-        SPAWN: null,
+        TITLE: 'Level 3 — Sector 9',
+        SCREENS: 9,                     // 8 play + 1 boss arena
+        PLAY_SCREENS: 8,
+        DATA_KEY: 'level3Data',
+        WEAPONS: ['normal', 'mega'],
+        ACID_PLANTS: 6,
+        BOSS_TYPE: 'greyus_triplets',
+        INTRO_STORY:
+            "You arrive in Sector 9. The stars have gone dark. " +
+            "Everything feels wrong, like the universe itself is " +
+            "in mourning. The 'evil family reunion' is somewhere " +
+            "ahead. Time to put an end to this, once and for all.",
+        WIN_MESSAGE: "With the Greyus bloodline silenced forever, Space Boy! set a course for home. The galaxy held a parade that lasted three star-cycles, but all he could think about was Verdana-5, his home planet. When his ship finally touched down, the whole planet was waiting, welcoming him with open arms. He settled down, married his childhood sweetheart, and together they raised five little legends: three Space Boys and two Space Girls, each one inheriting their father's green glow and heart of steel. They grew up to be brave, kind, and always ready to answer the call when the universe needed them. Space Boy! hung up his oversized gun above the fireplace, watched his children chase fireflies across the jade oceans, and for the first time in fifty years, he felt at peace.",
+
+        // --- Monochrome terrain override (negative-photograph look) ---
+        // Merged onto SpaceBoy.TERRAIN when this level loads, then
+        // restored to defaults when a different level loads.
+        TERRAIN_OVERRIDE: {
+            // Soil
+            SOIL_COLOR: '#3a3a3a',
+            SOIL_COLOR_DARK: '#2a2a2a',
+            SOIL_SPECKLE: '#4e4e4e',
+
+            // Grass → desaturated blue-greys
+            GRASS_COLOR: '#556666',
+            GRASS_COLOR_DARK: '#3e4e4e',
+            GRASS_COLOR_LIGHT: '#6a7a7a',
+
+            // Flowers → ghostly pale / washed-out monochrome
+            FLOWER_COLORS: ['#aaaaaa', '#888888', '#999999', '#bbbbbb', '#777777', '#cccccc'],
+            FLOWER_STEM_COLOR: '#505050',
+            FLOWER_CENTER_COLOR: '#dddddd',
+        },
+
+        SPAWN: {
+            PLATFORM_ENEMY_CHANCE: 0.6,     // very high — every ledge is dangerous
+            PLATFORM_TYPES: ['walker', 'charger', 'frogger'],
+            PLATFORM_CHARGER_RATIO: 0.25,
+            PLATFORM_FROGGER_RATIO: 0.35,
+            GROUND: [
+                { type: 'frogger', count: 25 },   // placed first — needs headroom
+                { type: 'walker', count: 20 },
+                { type: 'charger', count: 20 },
+            ],
+            AIR: [
+                { type: 'flyer', count: 25, minRow: 2, maxRow: 11 },
+                { type: 'dasher', count: 30, minRow: 2, maxRow: 9 },
+            ],
+            SAFE_COLS: 4,
+        },
     },
 };
 
@@ -438,8 +508,8 @@ SpaceBoy.LEVELS = {
 SpaceBoy.ENEMY_FAMILY = {
     walker: 'ground',
     charger: 'ground',
-    flyer:   'air',
-    dasher:  'air',
+    flyer: 'air',
+    dasher: 'air',
     frogger: 'ground',
 };
 
@@ -502,7 +572,7 @@ SpaceBoy.BOSS_TYPES = {
         NAME: 'Greyus Prime',
         WIDTH: 100,                         // 5x player width (20 * 5)
         HEIGHT: 180,                        // 5x player height (36 * 5)
-        HEALTH: 30,                         // user-requested: 30 HP
+        HEALTH: 50,
         SCORE: 500,
         CONTACT_DAMAGE: 1,
 
@@ -557,7 +627,7 @@ SpaceBoy.BOSS_TYPES = {
         NAME: 'Greyus Prime Plus',
         WIDTH: 110,                         // slightly larger than dad
         HEIGHT: 195,
-        HEALTH: 45,                         // tougher than dad
+        HEALTH: 75,                         // tougher than dad
         SCORE: 800,
         CONTACT_DAMAGE: 1,
 
@@ -605,6 +675,69 @@ SpaceBoy.BOSS_TYPES = {
         COLOR_HAIR: '#0a0a0e',              // jet black emo hair
         COLOR_HAIR_HL: '#332244',           // subtle purple sheen highlight
         COLOR_EYELINER: '#000000',          // smudged black eyeliner
+    },
+
+    // Level 3 — The Greyus Triplets. Three saucers orbiting in sync,
+    // sharing a single 300 HP pool. Every 10th bullet is an uber insta-kill.
+    greyus_triplets: {
+        NAME: 'The Greyus Triplets',
+        // Bounding box encompasses all 3 orbiting saucers
+        WIDTH: 280,
+        HEIGHT: 280,
+        HEALTH: 90,                         // shared across all 3
+        SCORE: 1500,
+        CONTACT_DAMAGE: 1,
+
+        // Each individual saucer's visual size
+        TRIPLET_SIZE: { w: 70, h: 120 },
+        TRIPLET_ORBIT_RADIUS: 100,          // orbit distance from center
+        TRIPLET_ORBIT_SPEED: 0.3,           // orbits per second
+
+        // Movement — the group center moves around the arena
+        MOVE_SPEED: 100,
+        CHARGE_SPEED: 240,
+        WIGGLE_AMP_X: 80,
+        WIGGLE_AMP_Y: 40,
+        WIGGLE_FREQ_X: 0.6,
+        WIGGLE_FREQ_Y: 0.9,
+        HOVER_Y_MIN: 80,
+        HOVER_Y_MAX: 200,
+
+        MIN_DISTANCE_FROM_PLAYER: 200,
+        CHARGE_INTERVAL_MIN: 5,
+        CHARGE_INTERVAL_MAX: 8,
+        CHARGE_DURATION: 1.0,
+
+        // Shooting — fires from all 3 saucers simultaneously
+        SHOOT_PAUSE_MIN: 1.2,
+        SHOOT_PAUSE_MAX: 2.4,
+        SHOOT_BURST_MIN: 2,
+        SHOOT_BURST_MAX: 4,
+        SHOOT_BURST_INTERVAL: 0.25,
+        SHOOT_SPREAD: 0.2,
+        BULLET_SPEED: 300,
+        BULLET_RADIUS: 5,
+        BULLET_LIFE: 4,
+        BULLET_DAMAGE: 1,
+        BULLET_COLOR: '#ff4444',
+        BULLET_GLOW: 'rgba(255,68,68,0.5)',
+
+        // Uber bullet — every UBER_EVERY-th bullet is an insta-kill
+        UBER_EVERY: 10,                     // every 10th shot from any saucer
+        UBER_SPEED: 200,                    // slower but deadly
+        UBER_RADIUS: 12,                    // big and menacing
+
+        // Visual — dark metal saucers with red accents
+        COLOR_SAUCER_TOP: '#2a2020',
+        COLOR_SAUCER_BODY: '#1a0e0e',
+        COLOR_SAUCER_DARK: '#0a0505',
+        COLOR_SAUCER_RIM: '#ff3333',
+        COLOR_SAUCER_LIGHT: '#ff6666',
+        COLOR_ALIEN_SKIN: '#c0b8b0',
+        COLOR_ALIEN_SKIN_DARK: '#807870',
+        COLOR_ALIEN_EYE: '#0a0a10',
+        COLOR_ALIEN_EYE_HL: '#ffffff',
+        COLOR_SYNC_BEAM: '#ff4444',         // energy beam connecting the 3
     },
 };
 

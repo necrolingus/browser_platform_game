@@ -101,6 +101,10 @@
         // camera/spawner/level/etc. all see the right dimensions.
         SpaceBoy.applyLevelDimensions(currentLevelCfg);
 
+        // Apply (or restore) per-level terrain palette overrides so levels
+        // can have their own visual theme (e.g. monochrome for level 3).
+        SpaceBoy.applyTerrainOverride(currentLevelCfg.TERRAIN_OVERRIDE);
+
         var data = getLevelData(currentLevelCfg);
 
         // Validate + generate enemies/acid plants for this level
@@ -111,6 +115,7 @@
         camera = new Camera();
         player = new Player(level.spawnX, level.spawnY);
         player.setWeapons(currentLevelCfg.WEAPONS);
+        player.showHair = (levelNum >= 2);
         bullets = [];
         enemies = spawnEnemies(level.enemyDefs);
         gems = spawnGems(level.gemDefs);
@@ -402,11 +407,16 @@
         // --- Boss ---
         if (boss) {
             boss.update(dt, player);
-            if (player.alive && boss.alive && !boss._dying && boss.active && aabb(player, boss.rect())) {
+            if (player.alive && boss.alive && !boss._dying && boss.active && boss.contactTest(player)) {
                 player.takeDamage();
             }
-            if (player.alive && boss.checkBulletHitsPlayer(player)) {
-                player.takeDamage();
+            if (player.alive) {
+                var bulletHit = boss.checkBulletHitsPlayer(player);
+                if (bulletHit === 'uber') {
+                    player.kill();   // uber bullet = instant death
+                } else if (bulletHit) {
+                    player.takeDamage();
+                }
             }
         }
 
@@ -476,10 +486,9 @@
             }
             if (hit && !b.isMega) { bullets.splice(i, 1); continue; }
 
-            // Bullet vs boss
+            // Bullet vs boss (supports multi-rect triplet bosses)
             if (boss && boss.alive && !boss._dying && boss.active) {
-                var br = boss.rect();
-                if (circleRect(b.x, b.y, bulletRadius, br.x, br.y, br.width, br.height)) {
+                if (boss.hitTest(b.x, b.y, bulletRadius)) {
                     var bossKilled = boss.takeDamage(b.damage);
                     if (bossKilled) {
                         score += boss.scoreValue;
